@@ -2,10 +2,20 @@
 #define __glprogram_h__
 
 #include <GL/glew.h>
+#include <png.h>
 
+typedef struct Png Png;
 typedef struct GlShader GlShader;
 typedef struct GlTexture GlTexture;
 typedef struct GlProgram GlProgram;
+
+struct Png {
+	int width;
+	int height;
+	png_byte bit_depth;
+	png_byte color_type;
+	char *data;
+};
 
 struct GlShader {
 	const char *name;
@@ -13,6 +23,7 @@ struct GlShader {
 };
 
 struct GlTexture {
+	Png png;
 	const char *name;
 	GLuint handle;
 };
@@ -20,8 +31,10 @@ struct GlTexture {
 extern int gl_load_shader(GlShader *shader, GLenum shader_type, const char *src, const char *name);
 extern int gl_load_shader_from_file(GlShader *shader, GLenum shader_type, const char *file_path, const char *name);
 extern int gl_load_shaders(const char *directory);
+extern void gl_delete_shader(GlShader *shader);
 
-extern int gl_load_texture(const char *file_path);
+extern int gl_load_texture(GlTexture *texture, const char *file_path);
+extern void gl_delete_texture(GlTexture *texture);
 
 
 #endif

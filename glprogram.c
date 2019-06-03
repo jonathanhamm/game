@@ -2,20 +2,10 @@
 #include "glprogram.h"
 #include "errcodes.h"
 #include "data-structures.h"
-#include <png.h>
 #include <stdio.h>
 #include <string.h>
 #include <setjmp.h>
 
-typedef struct Png Png;
-
-struct Png {
-	int width;
-	int height;
-	png_byte bit_depth;
-	png_byte color_type;
-	char *data;
-};
 
 static void print_png_version(void);
 static int load_png(Png *png, const char *file_path);
@@ -69,11 +59,16 @@ int gl_load_shader_from_file(GlShader *shader, GLenum shader_type, const char *f
 
 int gl_load_shaders(const char *directory) {
 	GlShader shader; 
+	GlTexture texture;
 	print_png_version();
 	const char *test = "shaders/test.vsh";
 	gl_load_shader_from_file(&shader, GL_VERTEX_SHADER, test, test);
 
-	gl_load_texture("textures/pge_icon.png");
+	gl_load_texture(&texture, "textures/pge_icon.png");
+}
+
+void gl_delete_shader(GlShader *shader) {
+	glDeleteShader(shader->handle);
 }
 
 void print_png_version(void) {
@@ -81,11 +76,26 @@ void print_png_version(void) {
 	//log_info("Compiled with zlib %s; using zlib %s.", ZLIB_VERSION, zlib_version);
 };
 
-int gl_load_texture(const char *file_path) {
-	int result;
+int gl_load_texture(GlTexture *texture, const char *file_path) {
+	int result, handle;
 	Png png;
 
-	result = load_png(&png, file_path);
+	result = load_png(&texture->png, file_path);
+	if (result) {
+		log_error("Error loading shader %s", file_path);
+		return result;
+	}
+
+	glGenTextures(1, &handle);
+	glBindTexture(GL_TEXTURE_2D, handle);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, png.width, png.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, png.data);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	return STATUS_OK;
 }
 
 int load_png(Png *png, const char *file_path) {
@@ -93,7 +103,7 @@ int load_png(Png *png, const char *file_path) {
 	FILE *f;			
 	char *data;
 	png_byte sig[PNG_SIG_SIZE];
-	int result, npasses, i;
+	int result, i;
 	size_t len, row_size;
 	long width, height;
 	png_byte bit_depth;
@@ -117,7 +127,7 @@ int load_png(Png *png, const char *file_path) {
 
 	result = png_check_sig(sig, PNG_SIG_SIZE);
 	if (!result) {
-		log_error("Error reading texture: %s is not a valid png file", file_path);
+		log_error("Error reading png: %s is not a valid png file", file_path);
 		fclose(f);
 		return STATUS_PNG_ERR;
 	}
@@ -125,14 +135,14 @@ int load_png(Png *png, const char *file_path) {
 	png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL,
 		NULL, NULL);
 	if (!png_ptr) {
-		log_error("Error reading texture: %s - Failed on png_create_read_struct()", file_path);
+		log_error("Error reading png: %s - Failed on png_create_read_struct()", file_path);
 		fclose(f);
 		return STATUS_PNG_ERR;
 	}
 
 	png_infop info_ptr = png_create_info_struct(png_ptr);
 	if (!png_ptr) {
-		log_error("Error reading texture: %s - Failed on png_create_info_struct()", file_path);
+		log_error("Error reading png: %s - Failed on png_create_info_struct()", file_path);
 		fclose(f);
 		png_destroy_read_struct(&png_ptr, (png_infopp)NULL, (png_infopp)NULL);
 		return STATUS_PNG_ERR;
@@ -140,7 +150,7 @@ int load_png(Png *png, const char *file_path) {
 
 	png_infop end_info = png_create_info_struct(png_ptr);
 	if (!end_info) {
-		log_error("Error reading texture: %s - Failed on png_create_info_struct()", file_path);
+		log_error("Error reading png: %s - Failed on png_create_info_struct()", file_path);
 		fclose(f);
 		png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
 		return STATUS_PNG_ERR;
@@ -148,7 +158,7 @@ int load_png(Png *png, const char *file_path) {
 	
 	result = setjmp(png_jmpbuf(png_ptr));
 	if (result) {
-		log_error("Error reading texture: %s - Failed to create longjump buffer 1", file_path);
+		log_error("Error reading png: %s - Failed to create longjump buffer 1", file_path);
 		fclose(f);
 		png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 		return STATUS_PNG_ERR;
@@ -168,7 +178,7 @@ int load_png(Png *png, const char *file_path) {
 	
 	data = malloc(row_size * height);
 	if (!data) {
-		log_error("Error reading texture: %s - Out of Memory", file_path);
+		log_error("Error reading png: %s - Out of Memory", file_path);
 		fclose(f);
 		png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 		return STATUS_OUT_OF_MEMORY;
@@ -184,10 +194,13 @@ int load_png(Png *png, const char *file_path) {
 	png->color_type = color_type;
 	png->data = data;
 
-	log_info("read png with width: %d, height: %d, color_type: %d", width, height, color_type);
-
 	png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 	fclose(f);
 	return STATUS_OK;
 }
+
+void gl_delete_texture(GlTexture *texture) {
+	glDeleteTextures(1, &texture->handle);
+	free(texture->png.data);
+};
 
