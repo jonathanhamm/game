@@ -1,3 +1,3 @@
 out:
-	cc game.c log.c glprogram.c data-structures.c main.c -o game -lpng -lglfw -lGL -lGLEW -lpng -ggdb
+	cc camera.c game.c log.c meshes.c models.c glprogram.c data-structures.c main.c -o game -lm -lpng -lglfw -lGL -lGLEW -lpng -ggdb
 

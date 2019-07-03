@@ -10,6 +10,96 @@
 static void print_png_version(void);
 static int load_png(Png *png, const char *file_path);
 
+int gl_create_program_t1(GlProgram *program, GlShader *vertex_shader, GlShader *fragment_shader) {
+	int phandle;
+	GLint gstatus;
+	
+	phandle = glCreateProgram();
+	if (!phandle) {
+		log_error("Failed to create gl program, failed on call to glCreateProgram()");
+		return STATUS_GL_ERR;
+	} 
+
+	glAttachShader(phandle, vertex_shader->handle);
+	glAttachShader(phandle, fragment_shader->handle);
+	glLinkProgram(phandle);
+
+	glGetProgramiv(phandle, GL_LINK_STATUS, &gstatus);	
+	if (gstatus == GL_FALSE) {
+		GLint info_log_length;
+		char *err_str;
+
+		glGetProgramiv(phandle, GL_INFO_LOG_LENGTH, &info_log_length);
+		err_str = malloc(info_log_length + 1);
+		if (!err_str) {
+			log_error("Failed to create gl program: glLinkProgram() failed, and out of memory");
+			glDeleteProgram(phandle);
+			return STATUS_OUT_OF_MEMORY;
+		}
+		else {
+			glGetProgramInfoLog(phandle, info_log_length, NULL, err_str);	
+			log_error("Failed to create gl program: glLinkProgram() failed - %s", err_str);
+			free(err_str);
+			glDeleteProgram(phandle);
+			return STATUS_GL_ERR;
+		}
+	}
+
+	program->handle = phandle;
+
+	return STATUS_OK;
+}
+
+int gl_create_program(GlProgram *program, PointerVector shaders) {
+	size_t i;
+	int phandle;
+	GLint gstatus;
+	
+	phandle = glCreateProgram();
+	if (!phandle) {
+		log_error("Failed to create gl program, failed on call to glCreateProgram()");
+		return STATUS_GL_ERR;
+	} 
+
+	for (i = 0; i < shaders.size; i++) {
+		GlShader *shader = shaders.buffer[i];
+		glAttachShader(phandle, shader->handle);
+	}
+	
+	glLinkProgram(phandle);
+
+	glGetProgramiv(phandle, GL_LINK_STATUS, &gstatus);	
+	if (gstatus == GL_FALSE) {
+		GLint info_log_length;
+		char *err_str;
+
+		glGetProgramiv(phandle, GL_INFO_LOG_LENGTH, &info_log_length);
+		err_str = malloc(info_log_length + 1);
+		if (!err_str) {
+			log_error("Failed to create gl program: glLinkProgram() failed, and out of memory");
+			glDeleteProgram(phandle);
+			return STATUS_OUT_OF_MEMORY;
+		}
+		else {
+			glGetProgramInfoLog(phandle, info_log_length, NULL, err_str);	
+			log_error("Failed to create gl program: glLinkProgram() failed - %s", err_str);
+			free(err_str);
+			glDeleteProgram(phandle);
+			return STATUS_GL_ERR;
+		}
+	}
+	program->handle = phandle;
+	return STATUS_OK;
+}
+
+GLint gl_shader_attrib(GlProgram *program, const GLchar *attrib_name) {
+	GLint attrib = glGetAttribLocation(program->handle, attrib_name);
+	if (attrib == -1) {
+		log_error("Attribute not found: %s", attrib_name);
+	}
+	return attrib;
+}
+
 int gl_load_shader(GlShader *shader, GLenum shader_type, const char *src, const char *name) {
 	int handle;
 	GLint status;
@@ -41,6 +131,7 @@ int gl_load_shader(GlShader *shader, GLenum shader_type, const char *src, const 
 		return STATUS_GL_ERR;
 	}
 	shader->name = name;
+	shader->type = shader_type;
 	shader->handle = handle;
 	return STATUS_OK;
 }
@@ -78,7 +169,6 @@ void print_png_version(void) {
 
 int gl_load_texture(GlTexture *texture, const char *file_path) {
 	int result, handle;
-	Png png;
 
 	result = load_png(&texture->png, file_path);
 	if (result) {
@@ -92,8 +182,9 @@ int gl_load_texture(GlTexture *texture, const char *file_path) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, png.width, png.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, png.data);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture->png.width, texture->png.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture->png.data);
 	glBindTexture(GL_TEXTURE_2D, 0);
+	texture->handle = handle;
 
 	return STATUS_OK;
 }

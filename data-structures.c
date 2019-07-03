@@ -63,9 +63,42 @@ int char_add_c(CharBuf *b, char c) {
 	return STATUS_OK;
 }
 
-int char_buf_free(CharBuf *b) {
+void char_buf_free(CharBuf *b) {
 	free(b->buffer);
 	b->buffer = NULL;
+}
+
+int pointer_vector_init(PointerVector *vp) {
+	vp->size = 0;
+	vp->buf_size = INIT_VECTOR_BUF_SIZE;
+	
+	void **buffer = malloc(INIT_VECTOR_BUF_SIZE * sizeof(*buffer));
+	if (!buffer)
+		return STATUS_OUT_OF_MEMORY;
+	vp->buffer = buffer;
+
+	return STATUS_OK;
+}
+
+int pointer_vector_add(PointerVector *vp, void *p) {
+	size_t buf_size = vp->buf_size;
+	void **buffer = vp->buffer;
+
+	if (vp->size == buf_size) {
+		buf_size *= 2;
+		buffer = realloc(buffer, buf_size * sizeof(*buffer));
+		if (!buffer)
+			return STATUS_OUT_OF_MEMORY;
+		vp->buf_size = buf_size;
+		vp->buffer = buffer;
+	}
+	buffer[vp->size++] = p;
+	return STATUS_OK;
+}
+
+void pointer_vector_free(PointerVector *vp) {
+	free(vp->buffer);
+	vp->buffer = NULL;
 }
 
 void bob_str_map_init(BobStrMap *m) {
