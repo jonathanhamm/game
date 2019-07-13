@@ -2,7 +2,7 @@
 #define __models_h__
 
 #include "glprogram.h"
-#include "data-structures.h"
+#include "common/data-structures.h"
 #include <cglm/cglm.h>
 #include <GL/glew.h>
 

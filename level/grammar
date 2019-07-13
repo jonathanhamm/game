@@ -1,0 +1,60 @@
+####################################################################################################
+Lexical Grammar
+####################################################################################################
+identifer
+string
+number
+(
+)
+{
+}
+[
+]
+,
+:
+:=
+.
++
+-
+*
+/
+
+####################################################################################################
+Phrase Structure Grammar
+####################################################################################################
+
+<levelpackage> ::= <header> <body>
+
+<header> ::= <object>
+
+<propertyList> ::= <property> <propertyList'>
+<propertyList'> ::= "," <property> <propertyList'> | E
+<property> ::= string ":" <expression> 
+
+<body> ::= "{" <statementList> "}"
+
+<statementList> ::= <statement> <statementList> | E
+<statement> ::= <declaration>
+
+<declaration> ::= <type> identifier ":=" <expression>  
+
+<type> ::= "Shader" | "Texture" | "Program" | "Model" | "Instance" | "Num" | "String"
+
+<expression> ::= <sign> <expression> | <term> <expression'>
+<sign> ::= "+" | "-"
+<expression'> ::= addop <term> <expression'> | E
+
+<term> ::= <factor> <term'>
+<term'> ::= mulop <factor> <term'> | E
+
+<factor> ::= identifier <idsuffix> | number | string | "(" <expression> ")" | <object> | <array>
+
+<idsuffix> ::= "." identifier <idsuffix> | "(" <expressionList> ")" | "[" <expression> "]" | E
+
+<expressionList> ::= <expression> <expressionList'> | E
+<expressionList'> ::= , <expression> <expressionList'> | E
+
+<object> ::= "{" <propertyList> "}"
+<array> ::= "[" <expressionList> "]"
+
+

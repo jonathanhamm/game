@@ -1,0 +1,225 @@
+#include "parse.h"
+#include "error.h"
+
+
+static void parse_header(tok_s **t);
+static void parse_property_list(tok_s **t);
+static void parse_property_list_(tok_s **t);
+static void parse_property(tok_s **t);
+static void parse_body(tok_s **t);
+static void parse_statement_list(tok_s **t);
+static void parse_statement(tok_s **t);
+static void parse_declaration(tok_s **t);
+static void parse_type(tok_s **t);
+static void parse_expression(tok_s **t);
+static void parse_expression_(tok_s **t);
+static void parse_term(tok_s **t);
+static void parse_term_(tok_s **t);
+static void parse_factor(tok_s **t);
+static void parse_idsuffix(tok_s **t);
+static void parse_expression_list(tok_s **t);
+static void parse_expression_list_(tok_s **t);
+static void parse_object(tok_s **t);
+static void parse_array(tok_s **t);
+
+void parse(toklist_s *list) {
+	tok_s *t = list->head;
+
+	parse_header(&t);
+	parse_body(&t);
+	if (t->type != TOK_EOF) {
+		report_syntax_error("Expected end of source file", t);
+	}
+}
+
+void parse_header(tok_s **t) {
+	parse_object(t);
+}
+
+void parse_property_list(tok_s **t) {
+	parse_property(t);
+	parse_property_list_(t);
+}
+
+void parse_property_list_(tok_s **t) {
+	if ((*t)->type == TOK_COMMA) {
+		*t = (*t)->next;
+		parse_property(t);
+		parse_property_list_(t);
+	}
+}
+
+void parse_property(tok_s **t) {
+	if ((*t)->type == TOK_STRING) {
+		*t = (*t)->next;
+		if ((*t)->type == TOK_COLON) {
+			*t = (*t)->next;
+			parse_expression(t);
+		}
+		else {
+			report_syntax_error("Expected ':'", *t);
+			*t = (*t)->next;
+		}
+	}
+	else {
+		report_syntax_error("Expected string", *t);
+		*t = (*t)->next;
+	}
+}
+
+void parse_body(tok_s **t) {
+	if ((*t)->type == TOK_LBRACE) {
+		*t = (*t)->next;
+		parse_statement_list(t);	
+		if ((*t)->type != TOK_RBRACE) {
+			report_syntax_error("Expected '}'", *t);
+		}
+	}
+	else {
+		report_syntax_error("Expected '{'", *t);
+	}
+	*t = (*t)->next;
+}
+
+void parse_statement_list(tok_s **t) {
+	switch((*t)->type) {
+		case TOK_SHADER_DEC:
+		case TOK_TEXTURE_DEC:
+		case TOK_PROGRAM_DEC:
+		case TOK_MODEL_DEC:
+		case TOK_INSTANCE_DEC:
+		case TOK_NUM_DEC:
+		case TOK_STRING_DEC:
+			parse_statement(t);	
+			parse_statement_list(t);
+			break;
+		default:
+			break;
+	}
+}
+
+void parse_statement(tok_s **t) {
+	parse_declaration(t);
+}
+
+void parse_declaration(tok_s **t) {
+	parse_type(t);
+	if((*t)->type == TOK_IDENTIFIER) {
+		*t = (*t)->next;
+		if ((*t)->type == TOK_ASSIGN) {
+			*t = (*t)->next;
+			parse_expression(t);
+		}
+		else {
+			report_syntax_error("Expected ':='", *t);
+			*t = (*t)->next;
+		}
+	}
+	else {
+		report_syntax_error("Expected identifier", *t);
+		*t = (*t)->next;
+	}
+}
+
+void parse_type(tok_s **t) {
+	switch((*t)->type) {
+		case TOK_SHADER_DEC:
+		case TOK_TEXTURE_DEC:
+		case TOK_PROGRAM_DEC:
+		case TOK_MODEL_DEC:
+		case TOK_INSTANCE_DEC:
+		case TOK_NUM_DEC:
+		case TOK_STRING_DEC:
+			*t = (*t)->next;
+			break;
+		default:
+			report_syntax_error(
+				"Expected 'Shader', 'Texture', 'Program', 'Model', 'Instance', 'Num', or 'String'", 
+				*t);
+			*t = (*t)->next;
+			break;
+	}
+}
+
+void parse_expression(tok_s **t) {
+	if((*t)->type == TOK_ADDOP 
+		&& (!strcmp((*t)->lexeme, "+") || !strcmp((*t)->lexeme, "-"))) {
+		*t = (*t)->next;
+		parse_expression(t);
+	}
+	else {
+		parse_term(t);
+		parse_expression_(t);
+	}
+}
+
+void parse_expression_(tok_s **t) {
+	if ((*t)->type == TOK_ADDOP) {
+		*t = (*t)->next;
+		parse_term(t);
+		parse_expression_(t);
+	}
+}
+
+void parse_term(tok_s **t) {
+	parse_factor(t);
+	parse_term_(t);
+}
+
+void parse_term_(tok_s **t) {
+	if ((*t)->type == TOK_MULOP) {
+		*t = (*t)->next;
+		parse_factor(t);
+		parse_term_(t);
+	}
+}
+
+void parse_factor(tok_s **t) {
+	switch((*t)->type) {
+		case TOK_IDENTIFIER:
+			*t = (*t)->next;
+			parse_idsuffix(t);
+			break;
+		case TOK_NUMBER:
+			*t = (*t)->next;
+			break;
+		case TOK_STRING:
+			*t = (*t)->next;
+			break;
+		case TOK_LPAREN:
+			*t = (*t)->next;
+			parse_expression(t);
+			if((*t)->type != TOK_RPAREN) {
+				report_syntax_error("Expected ')'", *t);
+			}
+			*t = (*t)->next;
+			break;
+		case TOK_LBRACE:
+			parse_object(t);
+			break;
+		case TOK_LBRACK:
+			parse_array(t);
+			break;
+		default:
+			report_syntax_error("Expected identifier, number, string, '(', '{', or '['", *t);
+			*t = (*t)->next;
+			break;
+	}
+}
+
+void parse_idsuffix(tok_s **t) {
+}
+
+void parse_expression_list(tok_s **t) {
+}
+
+void parse_expression_list_(tok_s **t) {
+}
+
+void parse_object(tok_s **t) {
+}
+
+void parse_array(tok_s **t) {
+}
+
+

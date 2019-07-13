@@ -9,8 +9,8 @@
 
 typedef struct CharBuf CharBuf;
 typedef struct PointerVector PointerVector;
-typedef struct BobStrMapEntry BobStrMapEntry;
-typedef struct BobStrMap BobStrMap;
+typedef struct StrMapEntry StrMapEntry;
+typedef struct StrMap StrMap;
 
 struct CharBuf {
 	size_t size;
@@ -24,15 +24,15 @@ struct PointerVector {
 	void **buffer;
 };
 
-struct BobStrMapEntry {
+struct StrMapEntry {
 	char *key;
 	void *val;
-	BobStrMapEntry *next;
+	StrMapEntry *next;
 };
 
-struct BobStrMap {
+struct StrMap {
 	int size;
-	BobStrMapEntry *table[MAP_TABLE_SIZE];
+	StrMapEntry *table[MAP_TABLE_SIZE];
 };
 
 extern int char_buf_init(CharBuf *b);
@@ -44,10 +44,10 @@ extern int pointer_vector_init(PointerVector *pv);
 extern int pointer_vector_add(PointerVector *pv, void *p);
 extern void pointer_vector_free(PointerVector *pv);
 
-extern void bob_str_map_init(BobStrMap *m);
-extern int bob_str_map_insert(BobStrMap *m, char *key, void *val);
-extern void *bob_str_map_get(BobStrMap *m, char *key);
-extern void *bob_str_map_free(BobStrMap *m);
+extern void bob_str_map_init(StrMap *m);
+extern int bob_str_map_insert(StrMap *m, char *key, void *val);
+extern void *bob_str_map_get(StrMap *m, char *key);
+extern void *bob_str_map_free(StrMap *m);
 
 #endif
 

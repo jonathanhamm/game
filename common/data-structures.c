@@ -101,7 +101,7 @@ void pointer_vector_free(PointerVector *vp) {
 	vp->buffer = NULL;
 }
 
-void bob_str_map_init(BobStrMap *m) {
+void bob_str_map_init(StrMap *m) {
 	int i;
 
 	m->size = 0;
@@ -110,10 +110,10 @@ void bob_str_map_init(BobStrMap *m) {
 	}
 }
 
-int bob_str_map_insert(BobStrMap *m, char *key, void *val) {
+int bob_str_map_insert(StrMap *m, char *key, void *val) {
 	unsigned index = pjw_hash(key) % MAP_TABLE_SIZE;
-	BobStrMapEntry **pcurr = &m->table[index], *curr = *pcurr;
-	BobStrMapEntry *n = malloc(sizeof *n);
+	StrMapEntry **pcurr = &m->table[index], *curr = *pcurr;
+	StrMapEntry *n = malloc(sizeof *n);
 
 	if (!n) 
 		return STATUS_OUT_OF_MEMORY;
@@ -133,9 +133,9 @@ int bob_str_map_insert(BobStrMap *m, char *key, void *val) {
 	return STATUS_OK;
 }
 
-void *bob_str_map_get(BobStrMap *m, char *key) {
+void *bob_str_map_get(StrMap *m, char *key) {
 	unsigned index = pjw_hash(key);
-	BobStrMapEntry *entry = m->table[index];
+	StrMapEntry *entry = m->table[index];
 
 	if (entry) {
 		while (entry) {
@@ -146,9 +146,9 @@ void *bob_str_map_get(BobStrMap *m, char *key) {
 	return NULL;
 }
 
-void *bob_str_map_free(BobStrMap *m) {
+void *bob_str_map_free(StrMap *m) {
 	int i;
-	BobStrMapEntry *entry, *bck;
+	StrMapEntry *entry, *bck;
 
 	for (i = 0; i < MAP_TABLE_SIZE; i++) {
 		entry = m->table[i];

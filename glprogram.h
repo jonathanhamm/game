@@ -3,7 +3,7 @@
 
 #include <GL/glew.h>
 #include <png.h>
-#include "data-structures.h"
+#include "common/data-structures.h"
 
 typedef struct Png Png;
 typedef struct GlShader GlShader;

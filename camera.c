@@ -1,5 +1,5 @@
 #include "camera.h"
-#include "errcodes.h"
+#include "common/errcodes.h"
 
 static const float MAX_VERTICAL_ANGLE = 86.0f;
 

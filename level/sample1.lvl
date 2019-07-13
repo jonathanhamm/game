@@ -1,0 +1,12 @@
+{
+	"hello": 1+1,
+	"turd": 1-1
+}
+{
+	String derp := "hello"
+	Num bob := 1.1
+	Shader bob2 := {
+		"billy": a[23]
+	}
+}
+

@@ -75,15 +75,15 @@ PointerVector gen_models_test1(void) {
 	glm_vec3_copy((vec3){0,0,0}, m->pos);
 	glm_vec3_copy((vec3){0,0,0}, m->velocity);
 	glm_vec3_copy((vec3){0,0,0}, m->acceleration);
-	glm_vec3_copy((vec3){2,1,0}, m->scale);
-	glm_vec3_copy((vec3){2,1,0}, m->rotation);
+	glm_vec3_copy((vec3){1,1,0}, m->scale);
+	glm_vec3_copy((vec3){1,1,0}, m->rotation);
 	pointer_vector_add(&pv, m);
 
 
 	m = malloc(sizeof *m);
 	m->asset = a1;
 	m->mass = 1.0;
-	glm_vec3_copy((vec3){1,0,0}, m->pos);
+	glm_vec3_copy((vec3){-5,0,0}, m->pos);
 	glm_vec3_copy((vec3){0,0,0}, m->velocity);
 	glm_vec3_copy((vec3){0,0,0}, m->acceleration);
 	glm_vec3_copy((vec3){2,1,0}, m->scale);
@@ -93,7 +93,7 @@ PointerVector gen_models_test1(void) {
 	m = malloc(sizeof *m);
 	m->asset = a1;
 	m->mass = 1.0;
-	glm_vec3_copy((vec3){0,0,2}, m->pos);
+	glm_vec3_copy((vec3){5,0,2}, m->pos);
 	glm_vec3_copy((vec3){0,0,0}, m->velocity);
 	glm_vec3_copy((vec3){0,0,0}, m->acceleration);
 	glm_vec3_copy((vec3){2,1,0}, m->scale);

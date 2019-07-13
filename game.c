@@ -124,8 +124,7 @@ void bob_start(void) {
 	camera_init(&level.camera);
 
 
-	while (!glfwWindowShouldClose(window))
-	{
+	while (!glfwWindowShouldClose(window)) {
 		//float ratio;
 		//int width, height;
 		//mat4 m = GLM_MAT4_IDENTITY_INIT, p, mvp;
@@ -147,8 +146,8 @@ void bob_start(void) {
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		level_render(&level);
-		level.camera.pos[2] += 0.01;
 		glfwSwapBuffers(window);
+
 		GLenum error = glGetError();
 		if (error != GL_NO_ERROR) {
 			log_error("OpenGL Error: %d %d", error);

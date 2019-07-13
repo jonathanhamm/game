@@ -1,7 +1,6 @@
 #include "log.h"
 #include "glprogram.h"
-#include "errcodes.h"
-#include "data-structures.h"
+#include "common/errcodes.h"
 #include <stdio.h>
 #include <string.h>
 #include <setjmp.h>
