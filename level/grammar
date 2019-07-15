@@ -1,9 +1,17 @@
 ####################################################################################################
 Lexical Grammar
 ####################################################################################################
-identifer
-string
-number
+identifer ::= [a-zA-Z][a-zA-Z0-9]*
+String
+Num
+Shader
+Texture
+Program
+Mesh
+Model
+Instance
+<string> ::= "[^\"]*"
+<number> ::= \d+(\.\d+)?
 (
 )
 {
@@ -27,34 +35,70 @@ Phrase Structure Grammar
 
 <header> ::= <object>
 
-<propertyList> ::= <property> <propertyList'>
-<propertyList'> ::= "," <property> <propertyList'> | E
+<propertyList> ::= <property> <propertyList'> | E
+
+<propertyList_> ::= "," <property> <propertyList'> | E
+
 <property> ::= string ":" <expression> 
 
 <body> ::= "{" <statementList> "}"
 
-<statementList> ::= <statement> <statementList> | E
+<statementList> ::= <statement> <optSemicolon> <statementList> | E
+
+<optSemicolon> ::= ; | E
+
 <statement> ::= <declaration>
 
-<declaration> ::= <type> identifier ":=" <expression>  
+<declaration> ::= <type> identifier <optAssign>
 
-<type> ::= "Shader" | "Texture" | "Program" | "Model" | "Instance" | "Num" | "String"
+<optAssign> ::= ":=" <expression> | E
 
-<expression> ::= <sign> <expression> | <term> <expression'>
+<type> ::= <basicType> <optArray>
+
+<basicType> ::=
+	"Shader" | "Texture" 
+	| "Program" | "Mesh" 
+	| "Model" | "Instance" 
+	| "Num" | "String"
+	| "Dict" | "$"
+
+<optArray> ::= [ <optExpression> ] <optArray> | E
+
+<optExpression> ::= <expression> | E
+
+<expression> ::= <term> <expression'>
+
+<expression_> ::= addop <term> <expression'> | E
+
 <sign> ::= "+" | "-"
-<expression'> ::= addop <term> <expression'> | E
 
 <term> ::= <factor> <term'>
-<term'> ::= mulop <factor> <term'> | E
 
-<factor> ::= identifier <idsuffix> | number | string | "(" <expression> ")" | <object> | <array>
+<term_> ::= mulop <factor> <term'> | E
 
-<idsuffix> ::= "." identifier <idsuffix> | "(" <expressionList> ")" | "[" <expression> "]" | E
+<factor> ::= 
+	<sign> <expression>
+	| identifier <idsuffix> 
+	| number | string
+	| "(" <expression> ")" 
+	| <object> 
+	| <array>
 
-<expressionList> ::= <expression> <expressionList'> | E
-<expressionList'> ::= , <expression> <expressionList'> | E
+<idsuffix> ::= 
+	"." identifier <idsuffix>
+	| "(" <expressionList> ")"
+	| "[" <expression> "]"
+	| E
+
+<expressionList> ::= 
+	<expression> <expressionList'> 
+	| E
+
+<expressionList_> ::= 
+	, <expression> <expressionList'> 
+	| E
 
 <object> ::= "{" <propertyList> "}"
-<array> ::= "[" <expressionList> "]"
 
+<array> ::= "[" <expressionList> "]"
 

@@ -11,8 +11,9 @@ int main(int argc, char *argv[]) {
 	else {
 		for (i = 1; i < argc; i++) {
 			toklist_s tokens = lex(argv[i]);
-			parse(&tokens);
-			//toklist_print(&tokens);
+			if (tokens.head) {
+				parse(&tokens);
+			}
 		}
 	}
 	

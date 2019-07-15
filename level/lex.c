@@ -71,6 +71,10 @@ toklist_s lex(const char *file_name) {
 					fptr++;
 				}
 				break;
+			case ';':
+				add_token(&list, ";", 1, lineno, TOK_SEMICOLON);
+				fptr++;
+				break;
 			case '.':
 				add_token(&list, ".", 1, lineno, TOK_DOT);
 				fptr++;
@@ -89,6 +93,10 @@ toklist_s lex(const char *file_name) {
 				break;
 			case '/':
 				add_token(&list, "/", 1, lineno, TOK_MULOP);
+				fptr++;
+				break;
+			case '$':
+				add_token(&list, "$", 1, lineno, TOK_GENERIC_DEC);
 				fptr++;
 				break;
 			case '"':
@@ -161,7 +169,7 @@ toklist_s lex(const char *file_name) {
 				break;
 		}
 	}
-	add_token(&list, "$", 1, lineno, TOK_EOF);
+	add_token(&list, "%", 1, lineno, TOK_EOF);
 	return list;
 }
 
@@ -183,20 +191,24 @@ void add_token(toklist_s *list, char *lexeme, size_t len, unsigned lineno, tokty
 }
 
 int tok_keyword(char *ptr) {
-	if (!strcmp(ptr, "Shader"))
+	if(!strcmp(ptr, "Shader"))
 		return TOK_SHADER_DEC;
-	else if (!strcmp(ptr, "Texture"))
+	else if(!strcmp(ptr, "Texture"))
 		return TOK_TEXTURE_DEC;
-	else if (!strcmp(ptr, "Program"))
+	else if(!strcmp(ptr, "Program"))
 		return TOK_PROGRAM_DEC;
-	else if (!strcmp(ptr, "Model"))
+	else if(!strcmp(ptr, "Model"))
 		return TOK_MODEL_DEC;
-	else if (!strcmp(ptr, "Instance"))
+	else if(!strcmp(ptr, "Mesh"))
+		return TOK_MESH_DEC;
+	else if(!strcmp(ptr, "Instance"))
 		return TOK_INSTANCE_DEC;
-	else if (!strcmp(ptr, "Num"))
+	else if(!strcmp(ptr, "Num"))
 		return TOK_NUM_DEC;
-	else if (!strcmp(ptr, "String"))
+	else if(!strcmp(ptr, "String"))
 		return TOK_STRING_DEC;
+	else if(!strcmp(ptr, "Dict"))
+		return TOK_DICT_DEC;
 	else
 		return TOK_NONE;
 }

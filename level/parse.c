@@ -10,7 +10,10 @@ static void parse_body(tok_s **t);
 static void parse_statement_list(tok_s **t);
 static void parse_statement(tok_s **t);
 static void parse_declaration(tok_s **t);
+static void parse_opt_assign(tok_s **t);
 static void parse_type(tok_s **t);
+static void parse_basic_type(tok_s **t);
+static void parse_opt_array(tok_s **t);
 static void parse_expression(tok_s **t);
 static void parse_expression_(tok_s **t);
 static void parse_term(tok_s **t);
@@ -39,8 +42,10 @@ void parse_header(tok_s **t) {
 }
 
 void parse_property_list(tok_s **t) {
-	parse_property(t);
-	parse_property_list_(t);
+	if((*t)->type == TOK_STRING) {
+		parse_property(t);
+		parse_property_list_(t);
+	}
 }
 
 void parse_property_list_(tok_s **t) {
@@ -88,11 +93,17 @@ void parse_statement_list(tok_s **t) {
 		case TOK_SHADER_DEC:
 		case TOK_TEXTURE_DEC:
 		case TOK_PROGRAM_DEC:
+		case TOK_MESH_DEC:
 		case TOK_MODEL_DEC:
 		case TOK_INSTANCE_DEC:
 		case TOK_NUM_DEC:
+		case TOK_DICT_DEC:
 		case TOK_STRING_DEC:
+		case TOK_GENERIC_DEC:
 			parse_statement(t);	
+			if((*t)->type == TOK_SEMICOLON) {
+				parse_next_tok(t);
+			}
 			parse_statement_list(t);
 			break;
 		default:
@@ -108,14 +119,7 @@ void parse_declaration(tok_s **t) {
 	parse_type(t);
 	if((*t)->type == TOK_IDENTIFIER) {
 		parse_next_tok(t);
-		if ((*t)->type == TOK_ASSIGN) {
-			parse_next_tok(t);
-			parse_expression(t);
-		}
-		else {
-			report_syntax_error("Expected ':='", *t);
-			parse_next_tok(t);
-		}
+		parse_opt_assign(t);
 	}
 	else {
 		report_syntax_error("Expected identifier", *t);
@@ -123,36 +127,73 @@ void parse_declaration(tok_s **t) {
 	}
 }
 
+void parse_opt_assign(tok_s **t) {
+	if((*t)->type == TOK_ASSIGN) {
+		parse_next_tok(t);
+		parse_expression(t);
+	}
+}
+
 void parse_type(tok_s **t) {
+	parse_basic_type(t);
+	parse_opt_array(t);
+}
+
+void parse_basic_type(tok_s **t) {
 	switch((*t)->type) {
 		case TOK_SHADER_DEC:
 		case TOK_TEXTURE_DEC:
 		case TOK_PROGRAM_DEC:
+		case TOK_MESH_DEC:
 		case TOK_MODEL_DEC:
 		case TOK_INSTANCE_DEC:
 		case TOK_NUM_DEC:
+		case TOK_DICT_DEC:
 		case TOK_STRING_DEC:
+		case TOK_GENERIC_DEC:
 			parse_next_tok(t);
 			break;
 		default:
-			report_syntax_error(
-				"Expected 'Shader', 'Texture', 'Program', 'Model', 'Instance', 'Num', or 'String'", 
-				*t);
+				report_syntax_error(
+					"Expected 'Shader', 'Texture', 'Program', 'Model', 'Instance', 'Num', 'Mesh', 'Dict', '*', or 'String'", *t);
 			parse_next_tok(t);
 			break;
 	}
 }
 
-void parse_expression(tok_s **t) {
-	if((*t)->type == TOK_ADDOP 
-		&& (!strcmp((*t)->lexeme, "+") || !strcmp((*t)->lexeme, "-"))) {
+void parse_opt_array(tok_s **t) {
+	if((*t)->type == TOK_LBRACK) {
 		parse_next_tok(t);
-		parse_expression(t);
+		switch((*t)->type) {
+			case TOK_ADDOP:
+				if(!strcmp((*t)->lexeme, "+") || !strcmp((*t)->lexeme, "-")) {
+					parse_expression(t);
+				}
+				break;
+			case TOK_IDENTIFIER:
+			case TOK_NUMBER:
+			case TOK_LPAREN:
+			case TOK_LBRACE:
+			case TOK_LBRACK:
+				parse_expression(t);
+				break;
+			default:
+				break;
+		}
+		if((*t)->type == TOK_RBRACK) {
+			parse_next_tok(t);
+		}
+		else {
+			report_syntax_error("Expected ']'", *t);
+			parse_next_tok(t);
+		}
+		parse_opt_array(t);
 	}
-	else {
-		parse_term(t);
-		parse_expression_(t);
-	}
+}
+
+void parse_expression(tok_s **t) {
+	parse_term(t);
+	parse_expression_(t);
 }
 
 void parse_expression_(tok_s **t) {
@@ -178,6 +219,17 @@ void parse_term_(tok_s **t) {
 
 void parse_factor(tok_s **t) {
 	switch((*t)->type) {
+		case TOK_ADDOP:
+			if(!strcmp((*t)->lexeme, "+") || !strcmp((*t)->lexeme, "-")) {
+				parse_next_tok(t);
+				parse_expression(t);
+			}
+			else {
+				report_syntax_error(
+				"Expected identifier, number, string, '+', '-', '(', '{', or '['", *t);
+				parse_next_tok(t);
+			}
+			break;
 		case TOK_IDENTIFIER:
 			parse_next_tok(t);
 			parse_idsuffix(t);
@@ -203,7 +255,7 @@ void parse_factor(tok_s **t) {
 			parse_array(t);
 			break;
 		default:
-			report_syntax_error("Expected identifier, number, string, '(', '{', or '['", *t);
+			report_syntax_error("Expected identifier, number, string, '+', '-', '(', '{', or '['", *t);
 			parse_next_tok(t);
 			break;
 	}

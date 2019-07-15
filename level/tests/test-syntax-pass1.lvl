@@ -1,0 +1,32 @@
+{
+	"1": [1,[1],[1,1,1,1]], 
+	"hello":"world",
+	"hello":(+"hello") 
+}
+{
+	Shader bob := omg;
+	Shader[] bob;
+	$[] omg;
+	$ t := {}
+	$ z := [{},{},[],{}]
+	Dict[][][[]] bob $[][32+32+[1]+((((((((1))))))+3)*4)/3][3] a
+	Mesh turd
+	Model omgasdfasdfasdfasdf43
+	Model[32.23] hah
+	Shader bob2; Mesh bob Shader bob Program turd := 32.1; Texture turd32 := 32*32;
+	Num bob := {
+		"hello" : {
+			"turd" : 32,
+			"omg" : "hello"
+		},
+		"": [32.3, "32.4", [32]]
+	}
+	String omg := 32;
+	Program turd := 32
+	$ b3;
+	$[] b2;
+	Dict[] a1;
+	Instance a; Instance b; Instance c Instance d
+	Mesh[32] a;
+}
+
