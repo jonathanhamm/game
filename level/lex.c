@@ -7,8 +7,8 @@
 #include <string.h>
 
 static void add_token(toklist_s *list, char *lexeme, size_t len, unsigned lineno, toktype_e type);
-
 static int tok_keyword(char *ptr);
+static void report_lexical_error(const char *message, char c, unsigned lineno);
 
 toklist_s lex(const char *file_name) {
 	int result;
@@ -220,5 +220,9 @@ void toklist_print(toklist_s *list) {
 		printf("token: %s at line %u of type %d\n", t->lexeme, t->lineno, t->type);
 		t = t->next;
 	}
+}
+
+void report_lexical_error(const char *message, char c, unsigned lineno) {
+	fprintf(stderr, "Lexical Error at line %u, character '%c': %s\n", lineno, c, message);
 }
 

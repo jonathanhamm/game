@@ -86,8 +86,8 @@ Phrase Structure Grammar
 
 <idsuffix> ::= 
 	"." identifier <idsuffix>
-	| "(" <expressionList> ")"
-	| "[" <expression> "]"
+	| "(" <expressionList> ")" <idsuffix>
+	| "[" <expression> "]" <idsuffx>
 	| E
 
 <expressionList> ::= 

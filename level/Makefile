@@ -1,3 +1,3 @@
 out:
-	cc ../common/data-structures.c lex.c parse.c error.c main.c -o  level
+	cc ../common/data-structures.c lex.c parse.c main.c -o  level
 

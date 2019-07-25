@@ -1,11 +1,14 @@
 #include "parse.h"
 #include "error.h"
+#include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include "../common/data-structures.h"
 
 typedef enum p_type_e p_type_e;
 typedef struct p_valtype_s p_valtype_s;
-typedef struct p_numlist_s p_numlist_s;
+typedef struct p_accessitem_s p_accessitem_s;
+typedef struct p_accesslist_s p_accesslist_s;
 typedef struct p_expression_s p_expression_s;
 typedef struct p_term_s p_term_s;
 typedef struct p_factor_s p_factor_s;
@@ -19,17 +22,49 @@ enum p_type_e {
 	PTYPE_NUM,
 	PTYPE_STRING,
 	PTYPE_DICT,
+	PTYPE_ARRAY,
 	PTYPE_ANY
 };
 
+/*
+	Shader <- { Shader, Dict }
+	Texture <- { Texture, Dict }
+	Mesh <- { Mesh, Dict }
+	Model <- { Model, Dict }
+	Instance <- { Instance, Dict }
+	Num <- { Num }
+	String <- { String, Num }
+	Dict <- { Dict }
+	Array of type <- { Array of type }
+	Any <- { any type above }
+
+	* Valid Binary Opertions:
+
+		- Num + Num -> Num
+		- Num - Num -> Num
+		- Num * Num -> Num
+		- Num / Num -> Num
+		- - Num -> Num
+		- String + String -> String
+		- Num + String -> String [commutative]
+*/
+
 struct p_valtype_s {
 	p_type_e basic_type;	
-	p_numlist_s *numlist;
+	p_accesslist_s *accesslist;
 };
 
-struct p_numlist_s {
+struct p_accessitem_s {
+	bool isnum;
+	union {
+		int num;
+		char *key;
+	} item;
+};
+
+struct p_accesslist_s {
 	int size;
-	int buf[];
+	p_accessitem_s items[];
 };
 
 struct p_expression_s {
@@ -42,6 +77,12 @@ struct p_term_s {
 
 struct p_factor_s {
 	p_valtype_s type;
+	union {
+		p_expression_s *expression;
+		tok_s *token;
+		double num;
+		char *str;
+	} val;
 };
 
 static void parse_header(tok_s **t);
@@ -69,9 +110,17 @@ static void parse_array(tok_s **t);
 static void parse_next_tok(tok_s **t);
 
 static p_factor_s *p_factor_init(p_type_e basic_type);
-static p_numlist_s *p_numlist_create();
-static void *p_numlist_add(p_numlist_s **list, int n);
+static p_factor_s *p_factor_init_from_type(p_valtype_s *type);
+static p_accesslist_s *p_accesslist_create(void);
+static p_accesslist_s *p_accesslist_clone(p_accesslist_s *l);
+static p_accesslist_s *p_accesslist_add_int(p_accesslist_s *l, int n);
+static p_accesslist_s *p_accesslist_add_key(p_accesslist_s *l, char *key);
+static void p_asslist_free(p_accesslist_s *l);
 
+static void report_syntax_error(const char *message, tok_s *tok);
+static void report_semantics_error(const char *message, tok_s *tok);
+
+static int parse_errors;
 static StrMap symtable;
 
 void parse(toklist_s *list) {
@@ -168,10 +217,10 @@ void parse_declaration(tok_s **t) {
 	parse_type(t);
 	if((*t)->type == TOK_IDENTIFIER) {
 		char *ident = (*t)->lexeme;
-		p_expression_s *exp;
+		p_expression_s *expression;
 		parse_next_tok(t);
-		exp = parse_opt_assign(t);
-		bob_str_map_insert(&symtable, ident, exp); 
+		expression = parse_opt_assign(t);
+		bob_str_map_insert(&symtable, ident, expression); 
 	}
 	else {
 		report_syntax_error("Expected identifier", *t);
@@ -275,40 +324,62 @@ p_factor_s *parse_factor(tok_s **t) {
 	p_factor_s *factor;
 
 	switch((*t)->type) {
-		case TOK_ADDOP:
-			if(!strcmp((*t)->lexeme, "+") || !strcmp((*t)->lexeme, "-")) {
-				parse_next_tok(t);
-				parse_expression(t);
-			}
-			else {
-				report_syntax_error(
-				"Expected identifier, number, string, '+', '-', '(', '{', or '['", *t);
-				parse_next_tok(t);
+		case TOK_ADDOP: {
+				int neg = !strcmp((*t)->lexeme, "-");
+				p_expression_s *expression;
+				if(neg || !strcmp((*t)->lexeme, "+")) {
+					parse_next_tok(t);
+					expression = parse_expression(t);
+					factor = p_factor_init_from_type(&expression->type);
+					factor->val.expression = expression;
+				}
+				else {
+					report_syntax_error(
+					"Expected identifier, number, string, '+', '-', '(', '{', or '['", *t);
+					parse_next_tok(t);
+				}
 			}
 			break;
-		case TOK_IDENTIFIER:
-			parse_next_tok(t);
-			parse_idsuffix(t);
+		case TOK_IDENTIFIER: {
+				char *ident = (*t)->lexeme;
+				p_expression_s *expression;
+				expression = bob_str_map_get(&symtable, ident);
+				if(!expression) {
+					report_semantics_error("Use of undelcared identifier", *t);		
+					expression = NULL;
+				}
+				parse_next_tok(t);
+				parse_idsuffix(t);
+			}
 			break;
 		case TOK_NUMBER:
 			factor = p_factor_init(PTYPE_NUM);
+			factor->val.num = atof((*t)->lexeme);
 			parse_next_tok(t);
 			break;
 		case TOK_STRING:
+			factor = p_factor_init(PTYPE_STRING);
+			factor->val.str = (*t)->lexeme;
 			parse_next_tok(t);
 			break;
-		case TOK_LPAREN:
-			parse_next_tok(t);
-			parse_expression(t);
-			if((*t)->type != TOK_RPAREN) {
-				report_syntax_error("Expected ')'", *t);
+		case TOK_LPAREN: {
+				p_expression_s *expression;
+				parse_next_tok(t);
+				expression = parse_expression(t);
+				factor = p_factor_init_from_type(&expression->type);
+				factor->val.expression = expression;
+				if((*t)->type != TOK_RPAREN) {
+					report_syntax_error("Expected ')'", *t);
+				}
+				parse_next_tok(t);
 			}
-			parse_next_tok(t);
 			break;
 		case TOK_LBRACE:
+			factor = p_factor_init(PTYPE_DICT);
 			parse_object(t);
 			break;
 		case TOK_LBRACK:
+			factor = p_factor_init(PTYPE_ARRAY);
 			parse_array(t);
 			break;
 		default:
@@ -338,6 +409,7 @@ void parse_idsuffix(tok_s **t) {
 			parse_expression_list(t);
 			if((*t)->type == TOK_RPAREN) {
 				parse_next_tok(t);
+				parse_idsuffix(t);
 			}
 			else {
 				report_syntax_error("Expected ')'", *t);
@@ -349,6 +421,7 @@ void parse_idsuffix(tok_s **t) {
 			parse_expression(t);
 			if((*t)->type == TOK_RBRACK) {
 				parse_next_tok(t);
+				parse_idsuffix(t);
 			}
 			else {
 				report_syntax_error("Expected ']'", *t);
@@ -438,8 +511,8 @@ p_factor_s *p_factor_init(p_type_e basic_type) {
 		return NULL;
 	}
 	f->type.basic_type = basic_type;
-	f->type.numlist = p_numlist_create();
-	if(!f->type.numlist) {
+	f->type.accesslist = p_accesslist_create();
+	if(!f->type.accesslist) {
 		perror("memory allocation error in p_factor_init()");
 		free(f);
 		return NULL;
@@ -447,23 +520,72 @@ p_factor_s *p_factor_init(p_type_e basic_type) {
 	return f;
 }
 
-p_numlist_s *p_numlist_create() {
-	p_numlist_s *l = calloc(sizeof(p_numlist_s), 1);
+
+p_factor_s *p_factor_init_from_type(p_valtype_s *t) {
+	p_factor_s *f = p_factor_init(t->basic_type);
+	if(f) {
+		f->type.accesslist = p_accesslist_clone(t->accesslist);
+		return f;
+	}
+	return NULL;
+}
+
+p_accesslist_s *p_accesslist_create(void) {
+	p_accesslist_s *l = calloc(sizeof *l, 1);	
 	if(!l) {
-		perror("memory allocation error on calloc() in p_numlist_create()");
+		perror("memory allocation error on calloc() in p_accesslist_create()");
 		return NULL;
 	}
 	return l;
 }
 
-void *p_numlist_add(p_numlist_s **list, int n) {
-	p_numlist_s *original = *list;
-	original->size++;
-	*list = realloc(original, sizeof(*original) * original->size);
-	if(!*list) {
-		perror("memory allocation error on realloc() in p_numlist_add()");
-		return original;
+p_accesslist_s *p_accesslist_clone(p_accesslist_s *l) {
+	int i, size = l->size;
+	p_accesslist_s *ll = malloc(sizeof(*l) + sizeof(p_accessitem_s) * size);	
+	if(!ll) {
+		perror("memory allocation error on malloc() in p_accesslist_clone");
+		return NULL;
 	}
-	return *list;
+	ll->size = size;
+	for(i = 0; i < size; i++)
+		ll->items[i].item = l->items[i].item;
+}
+
+p_accesslist_s *p_accesslist_add_int(p_accesslist_s *l, int n) {
+	p_accesslist_s *ll = realloc(l, sizeof(*l) + sizeof(p_accessitem_s) * (l->size + 1));
+	if(!ll) {
+		perror("memory allocation error on realloc() in p_accesslist_add_int");
+		return l;
+	}
+	ll->items[ll->size].isnum = true;
+	ll->items[ll->size].item.num = n;
+	ll->size++;
+	return ll;
+}
+
+p_accesslist_s *p_accesslist_add_key(p_accesslist_s *l, char *key) {
+	p_accesslist_s *ll = realloc(l, sizeof(*l) + sizeof(p_accessitem_s) * (l->size + 1));
+	if(!ll) {
+		perror("memory allocation error on realloc() in p_accesslist_add_key");
+		return l;
+	}
+	ll->items[ll->size].isnum = false;
+	ll->items[ll->size].item.key = key;
+	ll->size++;
+	return ll;
+}
+
+static void p_asslist_free(p_accesslist_s *l) {
+	free(l);
+}
+
+void report_syntax_error(const char *message, tok_s *tok) {
+	parse_errors++;
+	fprintf(stderr, "Syntax Error at line %u, token: '%s': %s\n", tok->lineno, tok->lexeme, message);
+}
+
+void report_semantics_error(const char *message, tok_s *tok) {
+	parse_errors++;
+	fprintf(stderr, "Error at line %u, token '%s': %s\n", tok->lineno, tok->lexeme, message);
 }
 
