@@ -30,6 +30,9 @@ Instance
 ####################################################################################################
 Phrase Structure Grammar
 ####################################################################################################
+Semantic Functions:
+	- makeNode(left, parent, right) - create new binary tree node
+====================================================================================================
 
 <levelpackage> ::= <header> <body>
 
@@ -66,15 +69,32 @@ Phrase Structure Grammar
 
 <optExpression> ::= <expression> | E
 
-<expression> ::= <term> <expression'>
+<expression> ::= <term> <expression_> 
+{
+	if <expression_> <> E:
+		this.node := makeNode(<expression_>.op, <term>.node, <expression>.<term>.node)
+	else:
 
-<expression_> ::= addop <term> <expression'> | E
+	fi
+}
+
+<expression_> ::= 
+	addop <term> [1] <expression_> 
+	{
+		phase1.[1]:
+			_root := makeNode(_root, addop, <term>)
+			call <expression_> {
+				<expression_>.root := _root
+			}
+	}
+	| 
+	E
 
 <sign> ::= "+" | "-"
 
-<term> ::= <factor> <term'>
+<term> ::= <factor> <term_>
 
-<term_> ::= mulop <factor> <term'> | E
+<term_> ::= mulop <factor> <term_> | E
 
 <factor> ::= 
 	<sign> <expression>
