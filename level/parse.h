@@ -6,6 +6,7 @@
 
 typedef enum p_nodetype_e p_nodetype_e;
 typedef struct p_context_s p_context_s;
+typedef struct tnode_list_s tnode_list_s;
 typedef struct tnode_s tnode_s;
 
 enum p_nodetype_e {
@@ -15,7 +16,12 @@ enum p_nodetype_e {
 	PTYPE_DIVISION,
 	PTYPE_NEGATION,
 	PTYPE_POS,
-	PTYPE_VAL
+	PTYPE_VAL,
+	PTYPE_ARRAY,
+	PTYPE_OBJECT,
+	PTYPE_CALL,
+	PTYPE_ACCESS_DICT,
+	PTYPE_ACCESS_ARRAY
 };
 
 struct p_context_s {
@@ -25,10 +31,26 @@ struct p_context_s {
 	tok_s *currtok;
 };
 
+struct tnode_list_s {
+	int size;
+	tnode_s **list;
+};
+
 struct tnode_s {
 	p_nodetype_e type;
 	tok_s *val;
-	tnode_s *l, *r;
+	union {
+		struct {
+			tnode_s *left, *right;
+		} b;
+		struct {
+			tnode_s *funcref;
+			tnode_list_s callargs;
+		} f;
+		tnode_list_s children;
+		tnode_s *child;
+		StrMap *dict;
+	} c ;
 };
 
 extern p_context_s parse(toklist_s *list);

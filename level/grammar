@@ -97,12 +97,12 @@ Semantic Functions:
 <term_> ::= mulop <factor> <term_> | E
 
 <factor> ::= 
-	<sign> <expression>
+	<sign> <expression> <idsuffix>
 	| identifier <idsuffix> 
-	| number | string
-	| "(" <expression> ")" 
-	| <object> 
-	| <array>
+	| number | string <idsuffix>
+	| "(" <expression> ")" <idsuffix>
+	| <object> <idsuffix>
+	| <array> <idsuffix>
 
 <idsuffix> ::= 
 	"." identifier <idsuffix>
