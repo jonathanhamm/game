@@ -4,6 +4,7 @@
 
 int main(int argc, char *argv[]) {
 	int i;	
+	p_context_s context;
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage: level <path-to-source-file> [,...]\n");
@@ -12,7 +13,8 @@ int main(int argc, char *argv[]) {
 		for (i = 1; i < argc; i++) {
 			toklist_s tokens = lex(argv[i]);
 			if (tokens.head) {
-				parse(&tokens);
+				context = parse(&tokens);
+				print_parse_tree(&context);
 			}
 		}
 	}

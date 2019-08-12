@@ -38,6 +38,7 @@ struct StrMap {
 extern int char_buf_init(CharBuf *b);
 extern int char_buf_from_file(CharBuf *b, const char *file_path);
 extern int char_add_c(CharBuf *b, char c);
+extern char char_popback_c(CharBuf *b);
 extern void char_buf_free(CharBuf *b);
 
 extern int pointer_vector_init(PointerVector *pv);

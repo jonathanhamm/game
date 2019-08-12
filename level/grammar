@@ -50,7 +50,7 @@ Semantic Functions:
 
 <optSemicolon> ::= ; | E
 
-<statement> ::= <declaration>
+<statement> ::= <declaration> | <assignstmt>
 
 <declaration> ::= <type> identifier <optAssign>
 
@@ -66,6 +66,8 @@ Semantic Functions:
 	| "Dict" | "$"
 
 <optArray> ::= [ <optExpression> ] <optArray> | E
+
+<assignstmt> ::= identifier <idsuffix> ":=" <expression>
 
 <optExpression> ::= <expression> | E
 

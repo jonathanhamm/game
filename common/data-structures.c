@@ -63,6 +63,14 @@ int char_add_c(CharBuf *b, char c) {
 	return STATUS_OK;
 }
 
+char char_popback_c(CharBuf *b) {
+	char *p = &b->buffer[b->size - 1];	
+	char c = *p;
+	*p = '\0';
+	b->size--;
+	return c;
+}
+
 void char_buf_free(CharBuf *b) {
 	free(b->buffer);
 	b->buffer = NULL;

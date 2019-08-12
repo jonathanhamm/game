@@ -21,7 +21,13 @@ enum p_nodetype_e {
 	PTYPE_OBJECT,
 	PTYPE_CALL,
 	PTYPE_ACCESS_DICT,
-	PTYPE_ACCESS_ARRAY
+	PTYPE_ACCESS_ARRAY,
+	PTYPE_BASIC_DEC,
+	PTYPE_ARRAY_DEC,
+	PTYPE_ASSIGN,
+	PTYPE_DEC,
+	PTYPE_STATEMENTLIST,
+	PTYPE_ROOT
 };
 
 struct p_context_s {
@@ -54,6 +60,7 @@ struct tnode_s {
 };
 
 extern p_context_s parse(toklist_s *list);
+extern void print_parse_tree(p_context_s *context);
 
 #endif
 

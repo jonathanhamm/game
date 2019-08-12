@@ -4,7 +4,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-
 /*
 typedef enum p_type_e p_type_e;
 
@@ -46,18 +45,19 @@ enum p_type_e {
 		- Num + String -> String [commutative]
 */
 
-static void parse_header(p_context_s *context);
+static tnode_s *parse_header(p_context_s *context);
 static StrMap *parse_property_list(p_context_s *context);
 static void parse_property_list_(p_context_s *context, StrMap *map);
 static void parse_property(p_context_s *context, StrMap *map);
-static void parse_body(p_context_s *context);
-static void parse_statement_list(p_context_s *context);
-static void parse_statement(p_context_s *context);
-static void parse_declaration(p_context_s *context);
-static tnode_s *parse_opt_assign(p_context_s *context);
-static void parse_type(p_context_s *context);
-static void parse_basic_type(p_context_s *context);
-static void parse_opt_array(p_context_s *context);
+static tnode_s *parse_body(p_context_s *context);
+static void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist);
+static tnode_s *parse_statement(p_context_s *context);
+static tnode_s *parse_declaration(p_context_s *context);
+static void parse_opt_assign(p_context_s *context, tnode_s **pident);
+static tnode_s *parse_type(p_context_s *context);
+static tnode_s *parse_basic_type(p_context_s *context);
+static void parse_opt_array(p_context_s *context, tnode_s **ptype);
+static tnode_s *parse_assignstmt(p_context_s *context);
 static tnode_s *parse_expression(p_context_s *context);
 static void parse_expression_(p_context_s *context, tnode_s **root);
 static tnode_s *parse_term(p_context_s *context);
@@ -69,6 +69,7 @@ static void parse_expression_list_(p_context_s *context, tnode_list_s *list);
 static tnode_s *parse_object(p_context_s *context);
 static tnode_s *parse_array(p_context_s *context);
 static void parse_next_tok(p_context_s *context);
+static tnode_s *tnode_init_basictype(tok_s *val);
 static tnode_s *tnode_init_val(tok_s *val);
 static tnode_s *tnode_init_bin(tnode_s *l, tok_s *val, p_nodetype_e type, tnode_s *r);
 static tnode_s *tnode_init_child(p_nodetype_e type, tok_s *val, tnode_s *child);
@@ -78,24 +79,48 @@ static tnode_s *tnode_init_func(tnode_s *funcref, tnode_list_s callargs, tok_s *
 static int tnode_listadd(tnode_list_s *list, tnode_s *child);
 static void report_syntax_error(const char *message, p_context_s *context);
 static void report_semantics_error(const char *message, p_context_s *context);
+static void print_parse_node(tnode_s *root, CharBuf *buf);
+static void print_bin_op(tnode_s *root, CharBuf *buf);
+static void print_child(tnode_s *root, CharBuf *buf);
+static void print_dict(tnode_s *root, CharBuf *buf);
+static void print_list(tnode_s *root, CharBuf *buf);
+static void print_leaf(tnode_s *root, CharBuf *buf);
+static void print_add_depth(CharBuf *buf);
+static void print_pop_depth(CharBuf *buf);
 
+/* 
+ * function:	parse	
+ * -------------------------------------------------- 
+ */
 p_context_s parse(toklist_s *list) {
+	tnode_s *header = NULL,
+					*body = NULL;
 	p_context_s context;
-
 	context.currtok = list->head;
 	context.parse_errors = 0;
+	context.root = NULL;
 	bob_str_map_init(&context.symtable);
-	parse_header(&context);
-	parse_body(&context);
+	header = parse_header(&context);
+	body = parse_body(&context);
 	if (context.currtok->type != TOK_EOF) {
 		report_syntax_error("Expected end of source file", &context);
 	}
+	context.root = tnode_init_bin(header, list->head, PTYPE_ROOT, body);
+	return context;
 }
 
-void parse_header(p_context_s *context) {
-	parse_object(context);
+/* 
+ * function:	parse_header
+ * -------------------------------------------------- 
+ */
+tnode_s *parse_header(p_context_s *context) {
+	return parse_object(context);
 }
 
+/* 
+ * function:	parse_property_list	
+ * -------------------------------------------------- 
+ */
 StrMap *parse_property_list(p_context_s *context) {
 	StrMap *result = calloc(1, sizeof(*result));
 	if(!result) {
@@ -109,6 +134,10 @@ StrMap *parse_property_list(p_context_s *context) {
 	return result;
 }
 
+/* 
+ * function:	parse_property_list_	
+ * -------------------------------------------------- 
+ */
 void parse_property_list_(p_context_s *context, StrMap *map) {
 	if (context->currtok->type == TOK_COMMA) {
 		parse_next_tok(context);
@@ -117,6 +146,10 @@ void parse_property_list_(p_context_s *context, StrMap *map) {
 	}
 }
 
+/* 
+ * function:	parse_property	
+ * -------------------------------------------------- 
+ */
 void parse_property(p_context_s *context, StrMap *map) {
 	if (context->currtok->type == TOK_STRING) {
 		char *key = context->currtok->lexeme;
@@ -137,21 +170,35 @@ void parse_property(p_context_s *context, StrMap *map) {
 	}
 }
 
-void parse_body(p_context_s *context) {
-	if (context->currtok->type == TOK_LBRACE) {
+/* 
+ * function:	parse_body	
+ * -------------------------------------------------- 
+ */
+tnode_s *parse_body(p_context_s *context) {
+	tnode_s *body = NULL;
+	if(context->currtok->type == TOK_LBRACE) {
+		tok_s *stmttok = context->currtok;
+		tnode_list_s stmtlist = {0, NULL};
 		parse_next_tok(context);
-		parse_statement_list(context);	
-		if (context->currtok->type != TOK_RBRACE) {
+		parse_statement_list(context, &stmtlist);	
+		if(context->currtok->type != TOK_RBRACE) {
 			report_syntax_error("Expected '}'", context);
 		}
+		body = tnode_init_children(PTYPE_STATEMENTLIST, stmttok, stmtlist);
 	}
 	else {
 		report_syntax_error("Expected '{'", context);
 	}
 	parse_next_tok(context);
+	return body;
 }
 
-void parse_statement_list(p_context_s *context) {
+/* 
+ * function:	parse_statement_list	
+ * -------------------------------------------------- 
+ */
+void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist) {
+	tnode_s *stmt;
 	switch(context->currtok->type) {
 		case TOK_SHADER_DEC:
 		case TOK_TEXTURE_DEC:
@@ -163,49 +210,87 @@ void parse_statement_list(p_context_s *context) {
 		case TOK_DICT_DEC:
 		case TOK_STRING_DEC:
 		case TOK_GENERIC_DEC:
-			parse_statement(context);	
+		case TOK_IDENTIFIER:
+			stmt = parse_statement(context);	
 			if(context->currtok->type == TOK_SEMICOLON) {
 				parse_next_tok(context);
 			}
-			parse_statement_list(context);
+			tnode_listadd(stmtlist, stmt);
+			parse_statement_list(context, stmtlist);
 			break;
 		default:
 			break;
 	}
 }
 
-void parse_statement(p_context_s *context) {
-	parse_declaration(context);
+/* 
+ * function:	parse_statement	
+ * -------------------------------------------------- 
+ */
+tnode_s *parse_statement(p_context_s *context) {
+	tnode_s *statement = NULL;
+	if(context->currtok->type == TOK_IDENTIFIER) {
+		statement = parse_assignstmt(context);	
+	}
+	else {
+		statement = parse_declaration(context);
+	}
+	return statement;
 }
 
-void parse_declaration(p_context_s *context) {
+/* 
+ * function:	parse_declaration	
+ * -------------------------------------------------- 
+ */
+tnode_s *parse_declaration(p_context_s *context) {
+	tnode_s *result = NULL;
+	tok_s *typetok = context->currtok;
 	parse_type(context);
 	if(context->currtok->type == TOK_IDENTIFIER) {
-		char *ident = context->currtok->lexeme;
+		tok_s *identtok = context->currtok;
+		char *ident = identtok->lexeme;
+		tnode_s	*dectarget = tnode_init_val(identtok);
 		parse_next_tok(context);
-		tnode_s *tnode =  parse_opt_assign(context);
-		bob_str_map_insert(&context->symtable, ident, tnode); 
+		parse_opt_assign(context, &dectarget);
+		result = tnode_init_child(PTYPE_DEC, typetok, dectarget);	
 	}
 	else {
 		report_syntax_error("Expected identifier", context);
 		parse_next_tok(context);
 	}
+	return result;
 }
 
-tnode_s *parse_opt_assign(p_context_s *context) {
+/* 
+ * function:	parse_opt_assign	
+ * -------------------------------------------------- 
+ */
+void parse_opt_assign(p_context_s *context, tnode_s **pident) {
 	if(context->currtok->type == TOK_ASSIGN) {
+		tnode_s *expression;
+		tok_s *op = context->currtok;
 		parse_next_tok(context);
-		return parse_expression(context);
+		expression = parse_expression(context);
+		*pident = tnode_init_bin(*pident, op, PTYPE_ASSIGN, expression);
 	}
-	return NULL;
 }
 
-void parse_type(p_context_s *context) {
-	parse_basic_type(context);
-	parse_opt_array(context);
+/* 
+ * function:	parse_type	
+ * -------------------------------------------------- 
+ */
+tnode_s *parse_type(p_context_s *context) {
+	tnode_s *type = parse_basic_type(context);
+	parse_opt_array(context, &type);
+	return type;
 }
 
-void parse_basic_type(p_context_s *context) {
+/* 
+ * function:	parse_basic_type	
+ * -------------------------------------------------- 
+ */
+tnode_s *parse_basic_type(p_context_s *context) {
+	tnode_s *type = NULL;
 	switch(context->currtok->type) {
 		case TOK_SHADER_DEC:
 		case TOK_TEXTURE_DEC:
@@ -217,6 +302,7 @@ void parse_basic_type(p_context_s *context) {
 		case TOK_DICT_DEC:
 		case TOK_STRING_DEC:
 		case TOK_GENERIC_DEC:
+			type = tnode_init_basictype(context->currtok);
 			parse_next_tok(context);
 			break;
 		default:
@@ -225,23 +311,27 @@ void parse_basic_type(p_context_s *context) {
 			parse_next_tok(context);
 			break;
 	}
+	return type;
 }
 
-void parse_opt_array(p_context_s *context) {
+/* 
+ * function:	parse_opt_array	
+ * -------------------------------------------------- 
+ */
+void parse_opt_array(p_context_s *context, tnode_s **ptype) {
 	if(context->currtok->type == TOK_LBRACK) {
+		tok_s *op = context->currtok;
 		parse_next_tok(context);
 		switch(context->currtok->type) {
 			case TOK_ADDOP:
-				if(!strcmp(context->currtok->lexeme, "+") || !strcmp(context->currtok->lexeme, "-")) {
-					parse_expression(context);
-				}
-				break;
 			case TOK_IDENTIFIER:
 			case TOK_NUMBER:
 			case TOK_LPAREN:
 			case TOK_LBRACE:
-			case TOK_LBRACK:
-				parse_expression(context);
+			case TOK_LBRACK: {
+					tnode_s *expression = parse_expression(context);
+					*ptype = tnode_init_bin(*ptype, op, PTYPE_ARRAY_DEC, expression);
+				}
 				break;
 			default:
 				break;
@@ -253,8 +343,30 @@ void parse_opt_array(p_context_s *context) {
 			report_syntax_error("Expected ']'", context);
 			parse_next_tok(context);
 		}
-		parse_opt_array(context);
+		parse_opt_array(context, ptype);
 	}
+}
+
+/* 
+ * function:	parse_assignstmt	
+ * -------------------------------------------------- 
+ */
+tnode_s *parse_assignstmt(p_context_s *context) {
+	tnode_s *result = NULL, *dest;
+	tok_s *val = context->currtok;
+	dest = tnode_init_val(val);
+	parse_next_tok(context);	
+	parse_idsuffix(context, &dest);
+	if(context->currtok->type == TOK_ASSIGN) {
+		tok_s *assign = context->currtok;
+		parse_next_tok(context);
+		tnode_s *expression = parse_expression(context);	
+		result = tnode_init_bin(dest, assign, PTYPE_ASSIGN, expression);
+	}
+	else {
+		report_syntax_error("Expected ':='", context);
+	}
+	return result;
 }
 
 /* 
@@ -280,7 +392,6 @@ void parse_expression_(p_context_s *context, tnode_s **root) {
 			*root = tnode_init_bin(*root, addop, PTYPE_ADDITION, term); 
 		else
 			*root = tnode_init_bin(*root, addop, PTYPE_SUBTRACTION, term);
-		parse_next_tok(context);
 		parse_expression_(context, root);
 	}
 }
@@ -317,7 +428,7 @@ void parse_term_(p_context_s *context, tnode_s **root) {
  * -------------------------------------------------- 
  */
 tnode_s *parse_factor(p_context_s *context) {
-	tnode_s *factor;
+	tnode_s *factor = NULL;
 	switch(context->currtok->type) {
 		case TOK_ADDOP: {
 				tok_s *addop = context->currtok;
@@ -331,16 +442,16 @@ tnode_s *parse_factor(p_context_s *context) {
 			}
 			break;
 		case TOK_IDENTIFIER:
-			factor = tnode_init_bin(NULL, context->currtok, PTYPE_VAL, NULL);
+			factor = tnode_init_val(context->currtok);
 			parse_next_tok(context);
 			parse_idsuffix(context, &factor);
 			break;
 		case TOK_NUMBER:
-			factor = tnode_init_bin(NULL, context->currtok, PTYPE_VAL, NULL);
+			factor = tnode_init_val(context->currtok);
 			parse_next_tok(context);
 			break;
 		case TOK_STRING:
-			factor = tnode_init_bin(NULL, context->currtok, PTYPE_VAL, NULL);
+			factor = tnode_init_val(context->currtok);
 			parse_next_tok(context);
 			parse_idsuffix(context, &factor);
 			break;
@@ -367,7 +478,7 @@ tnode_s *parse_factor(p_context_s *context) {
 			parse_next_tok(context);
 			break;
 	}
-	return NULL;
+	return factor;
 }
 
 /* 
@@ -532,6 +643,17 @@ void parse_next_tok(p_context_s *context) {
 		context->currtok = context->currtok->next;
 }
 
+tnode_s *tnode_init_basictype(tok_s *val) {
+	tnode_s *t = malloc(sizeof *t);
+	if(!t) {
+		perror("Memory Error in malloc() while allocating new basic type tnode");
+		return NULL;
+	}
+	t->val = val;
+	t->type = PTYPE_BASIC_DEC;
+	return t;
+}
+
 tnode_s *tnode_init_val(tok_s *val) {
 	tnode_s *t = malloc(sizeof *t);
 	if(!t) {
@@ -607,7 +729,6 @@ tnode_s *tnode_init_func(tnode_s *funcref, tnode_list_s callargs, tok_s *t) {
 
 int tnode_listadd(tnode_list_s *list, tnode_s *child) {
 	tnode_s **nlist;
-
 	list->size++;
 	nlist = realloc(list->list, sizeof(*list->list) * list->size);
 	if(!nlist) {
@@ -616,6 +737,7 @@ int tnode_listadd(tnode_list_s *list, tnode_s *child) {
 		return -1;
 	}
 	list->list = nlist;
+	list->list[list->size - 1] = child;
 	return 0;
 }
 
@@ -629,5 +751,125 @@ void report_semantics_error(const char *message, p_context_s *context) {
 	tok_s *t = context->currtok;
 	context->parse_errors++;
 	fprintf(stderr, "Error at line %u, token '%s': %s\n", t->lineno, t->lexeme, message);
+}
+
+void print_parse_tree(p_context_s *context) {
+	CharBuf buf;
+
+	char_buf_init(&buf);
+	print_parse_node(context->root, &buf);
+	char_buf_free(&buf);
+}
+
+void print_parse_node(tnode_s *root, CharBuf *buf) {
+	switch(root->type) {
+		case PTYPE_ROOT:
+		case PTYPE_ADDITION:
+		case PTYPE_SUBTRACTION:
+		case PTYPE_MULTIPLICATION:
+		case PTYPE_DIVISION:
+		case PTYPE_ASSIGN:
+			print_bin_op(root, buf);
+			break;
+		case PTYPE_NEGATION:
+		case PTYPE_POS:
+			break;
+		case PTYPE_VAL:
+			print_leaf(root, buf);
+			break;
+		case PTYPE_STATEMENTLIST:
+			print_list(root, buf);
+			break;
+		case PTYPE_ARRAY:
+			break;
+		case PTYPE_OBJECT:
+			print_dict(root, buf);
+			break;
+		case PTYPE_DEC:
+			print_child(root, buf);
+			break;
+		case PTYPE_CALL:
+		case PTYPE_ACCESS_DICT:
+		case PTYPE_ACCESS_ARRAY:
+		case PTYPE_BASIC_DEC:
+		case PTYPE_ARRAY_DEC:
+			break;
+		default:
+			break;
+	}
+}
+
+void print_bin_op(tnode_s *root, CharBuf *buf) {
+	char *lex;
+	if(root->type == PTYPE_ROOT) {
+		lex = "root";
+	} 
+	else {
+		lex = root->val->lexeme;
+	}
+	printf("%s--[%s]\n", buf->buffer, lex);
+	print_add_depth(buf);
+	printf("%s\n", buf->buffer);
+	print_parse_node(root->c.b.left, buf);
+	printf("%s\n", buf->buffer);
+	print_parse_node(root->c.b.right, buf);
+	print_pop_depth(buf);
+}
+
+void print_child(tnode_s *root, CharBuf *buf) {
+	printf("%s--[%s]\n", buf->buffer, root->val->lexeme);
+	print_add_depth(buf);
+	printf("%s\n", buf->buffer);
+	print_parse_node(root->c.child, buf);
+	print_pop_depth(buf);
+}
+
+void print_dict(tnode_s *root, CharBuf *buf) {
+	int i;
+	StrMap *map = root->c.dict;
+	StrMapEntry *entry;
+	printf("%s--[object]\n", buf->buffer);
+	print_add_depth(buf);
+	for(i = 0; i < MAP_TABLE_SIZE; i++) {
+		entry = map->table[i];
+		while(entry) {
+			printf("%s\n", buf->buffer);
+			printf("%s--[%s]\n", buf->buffer, entry->key);
+			print_add_depth(buf);
+			printf("%s\n", buf->buffer);
+			print_parse_node(entry->val, buf);
+			print_pop_depth(buf);
+			entry = entry->next;
+		}
+	}
+	print_pop_depth(buf);
+}
+
+void print_list(tnode_s *root, CharBuf *buf) {
+	int i;
+	tnode_list_s *children = &root->c.children;
+	printf("%s--[nodelist]\n", buf->buffer);
+	print_add_depth(buf);
+	for(i = 0; i < children->size; i++) {
+		printf("%s\n", buf->buffer);
+		print_parse_node(children->list[i], buf);
+	}
+	print_pop_depth(buf);
+}
+
+void print_leaf(tnode_s *root, CharBuf *buf) {
+	printf("%s--[%s]\n", buf->buffer, root->val->lexeme);
+}
+
+void print_add_depth(CharBuf *buf) {
+  char_add_c(buf, ' ');
+  char_add_c(buf, ' ');
+  char_add_c(buf, '|');
+}
+
+void print_pop_depth(CharBuf *buf) {
+	char_popback_c(buf);
+	char_popback_c(buf);
+	char_popback_c(buf);
 }
 
