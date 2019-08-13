@@ -85,6 +85,7 @@ static void print_child(tnode_s *root, CharBuf *buf);
 static void print_dict(tnode_s *root, CharBuf *buf);
 static void print_list(tnode_s *root, CharBuf *buf);
 static void print_leaf(tnode_s *root, CharBuf *buf);
+static void print_func(tnode_s *root, CharBuf *buf);
 static void print_add_depth(CharBuf *buf);
 static void print_pop_depth(CharBuf *buf);
 
@@ -778,9 +779,8 @@ void print_parse_node(tnode_s *root, CharBuf *buf) {
 			print_leaf(root, buf);
 			break;
 		case PTYPE_STATEMENTLIST:
-			print_list(root, buf);
-			break;
 		case PTYPE_ARRAY:
+			print_list(root, buf);
 			break;
 		case PTYPE_OBJECT:
 			print_dict(root, buf);
@@ -789,6 +789,8 @@ void print_parse_node(tnode_s *root, CharBuf *buf) {
 			print_child(root, buf);
 			break;
 		case PTYPE_CALL:
+			print_func(root, buf);
+			break;
 		case PTYPE_ACCESS_DICT:
 		case PTYPE_ACCESS_ARRAY:
 		case PTYPE_BASIC_DEC:
@@ -859,6 +861,27 @@ void print_list(tnode_s *root, CharBuf *buf) {
 
 void print_leaf(tnode_s *root, CharBuf *buf) {
 	printf("%s--[%s]\n", buf->buffer, root->val->lexeme);
+}
+
+void print_func(tnode_s *root, CharBuf *buf) {
+	int i;
+	tnode_list_s *args = &root->c.f.callargs;
+	printf("%s--[call]\n", buf->buffer);
+	print_add_depth(buf);
+	printf("%s\n", buf->buffer);
+	print_parse_node(root->c.f.funcref, buf);
+	print_add_depth(buf);
+	if(args->size == 0) {
+		printf("%s--[void]\n", buf->buffer);
+	}
+	else {
+		for(i = 0; i < args->size; i++) {
+			printf("%s\n", buf->buffer);
+			print_parse_node(args->list[i], buf);
+		}
+	}
+	print_pop_depth(buf);
+	print_pop_depth(buf);
 }
 
 void print_add_depth(CharBuf *buf) {

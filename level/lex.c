@@ -92,8 +92,24 @@ toklist_s lex(const char *file_name) {
 				fptr++;
 				break;
 			case '/':
-				add_token(&list, "/", 1, lineno, TOK_MULOP);
-				fptr++;
+				if(*(fptr + 1) == '/') {
+					fptr++;
+					while(*fptr && *fptr != '\n')
+						fptr++;	
+				}
+				else if(*(fptr + 1) == '*') {
+					while(*fptr) {
+						if(*fptr == '*' && *(fptr + 1) == '/') {
+							fptr += 2;
+							break;
+						}
+						fptr++;
+					}
+				}
+				else {
+					add_token(&list, "/", 1, lineno, TOK_MULOP);
+					fptr++;
+				}
 				break;
 			case '$':
 				add_token(&list, "$", 1, lineno, TOK_GENERIC_DEC);
