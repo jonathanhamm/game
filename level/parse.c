@@ -244,16 +244,16 @@ tnode_s *parse_statement(p_context_s *context) {
  * -------------------------------------------------- 
  */
 tnode_s *parse_declaration(p_context_s *context) {
-	tnode_s *result = NULL;
+	tnode_s *result = NULL, *typenode;
 	tok_s *typetok = context->currtok;
-	parse_type(context);
+	typenode = parse_type(context);
 	if(context->currtok->type == TOK_IDENTIFIER) {
 		tok_s *identtok = context->currtok;
 		char *ident = identtok->lexeme;
 		tnode_s	*dectarget = tnode_init_val(identtok);
 		parse_next_tok(context);
 		parse_opt_assign(context, &dectarget);
-		result = tnode_init_child(PTYPE_DEC, typetok, dectarget);	
+		result = tnode_init_bin(typenode, typetok, PTYPE_DEC, dectarget);
 	}
 	else {
 		report_syntax_error("Expected identifier", context);
@@ -334,8 +334,17 @@ void parse_opt_array(p_context_s *context, tnode_s **ptype) {
 					*ptype = tnode_init_bin(*ptype, op, PTYPE_ARRAY_DEC, expression);
 				}
 				break;
-			default:
-				break;
+			default: {
+				tnode_s *narray = calloc(1, sizeof *narray);
+				if(narray) {
+					narray->type = PTYPE_ANY;
+					*ptype = tnode_init_bin(*ptype, op, PTYPE_ARRAY_DEC, narray);
+				}
+				else {
+					perror("Memory allocation error: calloc() in parse_opt_array() creating new tnode");
+				}
+			}
+			break;
 		}
 		if(context->currtok->type == TOK_RBRACK) {
 			parse_next_tok(context);
@@ -770,12 +779,18 @@ void print_parse_node(tnode_s *root, CharBuf *buf) {
 		case PTYPE_MULTIPLICATION:
 		case PTYPE_DIVISION:
 		case PTYPE_ASSIGN:
+		case PTYPE_ACCESS_DICT:
+		case PTYPE_ACCESS_ARRAY:
+		case PTYPE_ARRAY_DEC:
+		case PTYPE_DEC:
 			print_bin_op(root, buf);
 			break;
 		case PTYPE_NEGATION:
 		case PTYPE_POS:
+			print_child(root, buf);
 			break;
 		case PTYPE_VAL:
+		case PTYPE_BASIC_DEC:
 			print_leaf(root, buf);
 			break;
 		case PTYPE_STATEMENTLIST:
@@ -785,16 +800,11 @@ void print_parse_node(tnode_s *root, CharBuf *buf) {
 		case PTYPE_OBJECT:
 			print_dict(root, buf);
 			break;
-		case PTYPE_DEC:
-			print_child(root, buf);
-			break;
 		case PTYPE_CALL:
 			print_func(root, buf);
 			break;
-		case PTYPE_ACCESS_DICT:
-		case PTYPE_ACCESS_ARRAY:
-		case PTYPE_BASIC_DEC:
-		case PTYPE_ARRAY_DEC:
+		case PTYPE_ANY:
+			printf("%s--[ANY]\n", buf->buffer);
 			break;
 		default:
 			break;
@@ -803,12 +813,23 @@ void print_parse_node(tnode_s *root, CharBuf *buf) {
 
 void print_bin_op(tnode_s *root, CharBuf *buf) {
 	char *lex;
-	if(root->type == PTYPE_ROOT) {
-		lex = "root";
-	} 
-	else {
-		lex = root->val->lexeme;
+
+	switch(root->type) {
+		case PTYPE_ROOT:
+			lex = "root";
+			break;
+		case PTYPE_ACCESS_ARRAY:
+		case PTYPE_ARRAY_DEC:
+			lex = "[]";
+			break;
+		case PTYPE_DEC:
+			lex = "DEC";
+			break;
+		default:
+			lex = root->val->lexeme;
+			break;
 	}
+
 	printf("%s--[%s]\n", buf->buffer, lex);
 	print_add_depth(buf);
 	printf("%s\n", buf->buffer);

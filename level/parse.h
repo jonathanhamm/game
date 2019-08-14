@@ -27,7 +27,8 @@ enum p_nodetype_e {
 	PTYPE_ASSIGN,
 	PTYPE_DEC,
 	PTYPE_STATEMENTLIST,
-	PTYPE_ROOT
+	PTYPE_ROOT,
+	PTYPE_ANY
 };
 
 struct p_context_s {
