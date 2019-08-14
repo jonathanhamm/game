@@ -3,11 +3,13 @@
 
 #include "lex.h"
 #include "../common/data-structures.h"
+#include <stdbool.h>
 
 typedef enum p_nodetype_e p_nodetype_e;
 typedef struct p_context_s p_context_s;
 typedef struct tnode_list_s tnode_list_s;
 typedef struct tnode_s tnode_s;
+typedef struct symtable_node_s symtable_node_s;
 
 enum p_nodetype_e {
 	PTYPE_ADDITION,
@@ -58,6 +60,11 @@ struct tnode_s {
 		tnode_s *child;
 		StrMap *dict;
 	} c ;
+};
+
+struct symtable_node_s {
+	bool evalflag;
+	tnode_s *node;
 };
 
 extern p_context_s parse(toklist_s *list);

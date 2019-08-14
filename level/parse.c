@@ -2,7 +2,6 @@
 #include "error.h"
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 
 /*
 typedef enum p_type_e p_type_e;
@@ -250,7 +249,15 @@ tnode_s *parse_declaration(p_context_s *context) {
 	if(context->currtok->type == TOK_IDENTIFIER) {
 		tok_s *identtok = context->currtok;
 		char *ident = identtok->lexeme;
+		symtable_node_s *symnode = malloc(sizeof *symnode);
+		if(!symnode) {
+			perror("Memory Allocation error in malloc while allocating a symtable node.");
+			return NULL;
+		}
+		symnode->evalflag = false;
+		symnode->node = NULL;
 		tnode_s	*dectarget = tnode_init_val(identtok);
+		bob_str_map_insert(&context->symtable, ident, symnode);
 		parse_next_tok(context);
 		parse_opt_assign(context, &dectarget);
 		result = tnode_init_bin(typenode, typetok, PTYPE_DEC, dectarget);

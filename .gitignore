@@ -1,3 +1,6 @@
 .*.swp
+*.*.swp
+*.swp
 game
+level/level
 
