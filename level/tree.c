@@ -1,5 +1,6 @@
 #include "tree.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef struct symcontext_s symcontext_s;
 
@@ -14,6 +15,7 @@ static void tree_sym_pass(tnode_s *root, symcontext_s *context);
 static void tree_sym_statement_list(tnode_s *statement_list, symcontext_s *context);
 static void tree_sym_statement(tnode_s *statement, symcontext_s *context);
 static void tree_sym_assign(tnode_s *assign, symcontext_s *context);
+static bool tree_sym_check_expression(tnode_s *assign, symcontext_s *context);
 
 void tree_walk(p_context_s *context) {
 	tree_resolve_symbols(context);
@@ -52,13 +54,19 @@ void tree_sym_statement_list(tnode_s *statement_list, symcontext_s *context) {
 
 void tree_sym_statement(tnode_s *statement, symcontext_s *context) {
 	if(statement->type == PTYPE_DEC) {
+		tnode_s *right = statement->c.b.right;
+		if(right->type == PTYPE_ASSIGN) {
+			tree_sym_assign(right, context);
+		}
 	}
 	else if(statement->type == PTYPE_ASSIGN) {
 		//bob_str_map_get(
 	}
 }
 
-
 void tree_sym_assign(tnode_s *assign, symcontext_s *context) {
+}
+
+bool tree_sym_check_expression(tnode_s *assign, symcontext_s *context) {
 }
 
