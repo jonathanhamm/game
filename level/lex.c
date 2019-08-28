@@ -1,5 +1,5 @@
 #include "lex.h"
-#include "error.h"
+//#include "error.h"
 #include "../common/errcodes.h"
 #include <ctype.h>
 #include <stdio.h>
