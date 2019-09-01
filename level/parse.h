@@ -69,6 +69,7 @@ struct symtable_node_s {
 
 extern p_context_s parse(toklist_s *list);
 extern void print_parse_tree(p_context_s *context);
+extern void print_parse_subtree(tnode_s *root);
 
 #endif
 

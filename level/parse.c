@@ -778,6 +778,14 @@ void print_parse_tree(p_context_s *context) {
 	char_buf_free(&buf);
 }
 
+void print_parse_subtree(tnode_s *root) {
+	CharBuf buf;
+
+	char_buf_init(&buf);
+	print_parse_node(root, &buf);
+	char_buf_free(&buf);
+}
+
 void print_parse_node(tnode_s *root, CharBuf *buf) {
 	switch(root->type) {
 		case PTYPE_ROOT:
