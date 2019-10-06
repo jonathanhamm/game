@@ -58,7 +58,7 @@ static tnode_s *parse_basic_type(p_context_s *context);
 static void parse_opt_array(p_context_s *context, tnode_s **ptype);
 static tnode_s *parse_assignstmt(p_context_s *context);
 static tnode_s *parse_expression(p_context_s *context);
-static void parse_expression_(p_context_s *context, tnode_s **root);
+static void parse_expression_(p_context_s *context, tnode_s *root);
 static tnode_s *parse_term(p_context_s *context);
 static void parse_term_(p_context_s *context, tnode_s **root);
 static tnode_s *parse_factor(p_context_s *context);
@@ -68,25 +68,21 @@ static void parse_expression_list_(p_context_s *context, tnode_list_s *list);
 static tnode_s *parse_object(p_context_s *context);
 static tnode_s *parse_array(p_context_s *context);
 static void parse_next_tok(p_context_s *context);
-static tnode_s *tnode_init_basictype(tok_s *val);
-static tnode_s *tnode_init_val(tok_s *val);
-static tnode_s *tnode_init_bin(tnode_s *l, tok_s *val, p_nodetype_e type, tnode_s *r);
-static tnode_s *tnode_init_child(p_nodetype_e type, tok_s *val, tnode_s *child);
-static tnode_s *tnode_init_children(p_nodetype_e type, tok_s *val, tnode_list_s children);
-static tnode_s *tnode_init_dict(p_nodetype_e type, tok_s *val, StrMap *dict);
-static tnode_s *tnode_init_func(tnode_s *funcref, tnode_list_s callargs, tok_s *t);
-static int tnode_listadd(tnode_list_s *list, tnode_s *child);
+
+static bool exec_sub(tnode_s *accum, tnode_s *operand);
+static bool exec_add(tnode_s *accum, tnode_s *operand);
+static bool exec_mult(tnode_s *accum, tnode_s *operand);
+static bool exec_div(tnode_s *accum, tnode_s *operand);
+static char *concat_str_integer(int i, char *str);
+static char *concat_integer_str(int i, char *str);
+static char *concat_str_double(char *str, double d);
+static char *concat_double_str(double d, char *str);
+static char *concat_str_str(char *str1, char *str2);
+static tnode_s *tnode_create_str(p_notetype_e type, unsigned lineno, char *s);
+static tnode_s *tnode_create_int(p_notetype_e type, unsigned lineno, int i);
+static tnode_s *tnode_create_float(p_notetype_e type, unsigned lineno, double f);
 static void report_syntax_error(const char *message, p_context_s *context);
 static void report_semantics_error(const char *message, p_context_s *context);
-static void print_parse_node(tnode_s *root, CharBuf *buf);
-static void print_bin_op(tnode_s *root, CharBuf *buf);
-static void print_child(tnode_s *root, CharBuf *buf);
-static void print_dict(tnode_s *root, CharBuf *buf);
-static void print_list(tnode_s *root, CharBuf *buf);
-static void print_leaf(tnode_s *root, CharBuf *buf);
-static void print_func(tnode_s *root, CharBuf *buf);
-static void print_add_depth(CharBuf *buf);
-static void print_pop_depth(CharBuf *buf);
 
 /* 
  * function:	parse	
@@ -206,7 +202,8 @@ void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist) {
 		case TOK_MESH_DEC:
 		case TOK_MODEL_DEC:
 		case TOK_INSTANCE_DEC:
-		case TOK_NUM_DEC:
+		case TOK_INT_DEC:
+		case TOK_FLOAT_DEC:
 		case TOK_DICT_DEC:
 		case TOK_STRING_DEC:
 		case TOK_GENERIC_DEC:
@@ -306,7 +303,8 @@ tnode_s *parse_basic_type(p_context_s *context) {
 		case TOK_MESH_DEC:
 		case TOK_MODEL_DEC:
 		case TOK_INSTANCE_DEC:
-		case TOK_NUM_DEC:
+		case TOK_INT_DEC:
+		case TOK_FLOAT_DEC:
 		case TOK_DICT_DEC:
 		case TOK_STRING_DEC:
 		case TOK_GENERIC_DEC:
@@ -333,7 +331,8 @@ void parse_opt_array(p_context_s *context, tnode_s **ptype) {
 		switch(context->currtok->type) {
 			case TOK_ADDOP:
 			case TOK_IDENTIFIER:
-			case TOK_NUMBER:
+			case TOK_INTEGER:
+			case TOK_FLOAT:
 			case TOK_LPAREN:
 			case TOK_LBRACE:
 			case TOK_LBRACK: {
@@ -400,7 +399,7 @@ tnode_s *parse_expression(p_context_s *context) {
  * function:	parse_expression_
  * -------------------------------------------------- 
  */
-void parse_expression_(p_context_s *context, tnode_s **root) {
+void parse_expression_(p_context_s *context, tnode_s *root) {
 	if (context->currtok->type == TOK_ADDOP) {
 		tok_s *addop = context->currtok;
 		parse_next_tok(context);
@@ -445,6 +444,7 @@ void parse_term_(p_context_s *context, tnode_s **root) {
  * -------------------------------------------------- 
  */
 tnode_s *parse_factor(p_context_s *context) {
+	int i, double f;
 	tnode_s *factor = NULL;
 	switch(context->currtok->type) {
 		case TOK_ADDOP: {
@@ -463,12 +463,18 @@ tnode_s *parse_factor(p_context_s *context) {
 			parse_next_tok(context);
 			parse_idsuffix(context, &factor);
 			break;
-		case TOK_NUMBER:
-			factor = tnode_init_val(context->currtok);
+		case TOK_INTEGER:
+			i = atoi(context->currtok->lexeme);
+			factor = tnode_create_int(PTYPE_INT, context->currtok->lineno, i);
+			parse_next_tok(context);
+			break;
+		case TOK_FLOAT:
+			f = atof(context->currtok->lexeme);
+			factor = tnode_create_float(PTYPE_FLOAT, context->currtok->lineno, f);
 			parse_next_tok(context);
 			break;
 		case TOK_STRING:
-			factor = tnode_init_val(context->currtok);
+			factor = tnode_create_str(PTYPE_STRING, context->currtok->lineno, context->currtok->lexeme);
 			parse_next_tok(context);
 			parse_idsuffix(context, &factor);
 			break;
@@ -573,7 +579,8 @@ tnode_list_s parse_expression_list(p_context_s *context) {
 			}
 			break;
 		case TOK_IDENTIFIER:
-		case TOK_NUMBER:
+		case TOK_INTEGER:
+		case TOK_FLOAT:
 		case TOK_STRING:
 		case TOK_LPAREN:
 		case TOK_LBRACE:
@@ -628,7 +635,6 @@ tnode_s *parse_object(p_context_s *context) {
 	return result;
 }
 
-
 /* 
  * function:	parse_aray 
  * -------------------------------------------------- 
@@ -660,102 +666,310 @@ void parse_next_tok(p_context_s *context) {
 		context->currtok = context->currtok->next;
 }
 
-tnode_s *tnode_init_basictype(tok_s *val) {
-	tnode_s *t = malloc(sizeof *t);
-	if(!t) {
-		perror("Memory Error in malloc() while allocating new basic type tnode");
-		return NULL;
+/* 
+ * function:	exec_sub 
+ * TODO: type checks and error reporting
+ * -------------------------------------------------- 
+ */
+bool exec_sub(tnode_s *accum, tnode_s *operand) {
+	if (accum->type == PTYPE_FLOAT) {
+		if (operand->type == PTYPE_FLOAT) {
+			accum->val.f -= operand->val.f;
+		}
+		else if (operand->type == PTYPE_INTEGER) {
+			accum->val.f -= operand->val.i;
+		}
+		else {
+			return false;
+		}
 	}
-	t->val = val;
-	t->type = PTYPE_BASIC_DEC;
-	return t;
+	else if (accum->type == PTYPE_INTEGER) {
+		if (operand->type == PTYPE_INTEGER) {
+			accum->val.i -= operand->val.i;
+		}
+		else if (operand->type == PTYPE_FLOAT) {
+			accum->val.f = accum->val.i - operand->val.f;
+			accum->type = PTYPE_FLOAT;
+		}
+		else {
+			return false;
+		}
+	}
+	free(operand);
+	return true;
 }
 
-tnode_s *tnode_init_val(tok_s *val) {
-	tnode_s *t = malloc(sizeof *t);
-	if(!t) {
-		perror("Memory Error in malloc() while allocating new val tnode");
-		return NULL;
+/* 
+ * function:	exec_add
+ * TODO: type checks and error reporting
+ * -------------------------------------------------- 
+ */
+bool exec_add(tnode_s *accum, tnode_s *operand) {
+	if (accum->type == PTYPE_FLOAT) {
+		if (operand->type == PTYPE_FLOAT) {
+			accum->val.f += operand->val.f;
+		}
+		else if (operand->type == PTYPE_INTEGER) {
+			accum->val.f += operand->val.i;
+		}
+		else if (operand->type == PTYPE_STRING) {
+			char *nstr = concat_double_str(accum->val.f, operand->val.s);	
+			accum->type = PTYPE_STRING;
+			accum->val.str = nstr;
+		}
+		else {
+			return false;
+		}
 	}
-	t->val = val;
-	t->type = PTYPE_VAL;
-	return t;
+	else if (accum->type == PTYPE_INTEGER) {
+		if (operand->type == PTYPE_INTEGER) {
+			accum->val.i += operand->val.i;
+		}
+		else if (operand->type == PTYPE_FLOAT) {
+			accum->val.f = accum->val.i + operand->val.f;
+			accum->type = PTYPE_FLOAT;
+		}
+		else if (operand->type == PTYPE_STRING) {
+			char *nstr = concat_integer_str(accum->val.i, operand->val.s);
+			accum->type = PTYPE_STRING;
+			accum->val.str = nstr;
+		}
+		else {
+			return false;
+		}
+	}
+	else if (accum->type == PTYPE_STRING) {
+		if (operand->type == PTYPE_FLOAT) {
+			char *nstr = concat_str_double(operand->val.s, accum->val.f);
+			accum->val.s = nstr;
+		}
+		else if (operand->type == PTYPE_INTEGER) {
+			char *nstr = concat_str_integer(accum->val.s, operand->val.f);
+			accum->val.s = = nstr;
+		}
+		else if (operand->type == PTYPE_STRING) {
+			char *nstr = concat_str_str(accum->val.s, operand->val.s);
+			accum->val.s = nstr;
+		}
+		else {
+			return false;
+		}
+	}
+	free(operand);
+	return true;
 }
 
-static tnode_s *tnode_init_bin(tnode_s *l, tok_s *val, p_nodetype_e type, tnode_s *r) {
-	tnode_s *t = malloc(sizeof *t);
-	if(!t) {
-		perror("Memory Error in malloc() while allocating new binary tnode");
+/* 
+ * function:	exec_mult
+ * TODO: type checks and error reporting
+ * -------------------------------------------------- 
+ */
+bool exec_mult(tnode_s *accum, tnode_s *operand) {
+	if (accum->type == PTYPE_FLOAT) {
+		if (operand->type == PTYPE_FLOAT) {
+			accum->val.f *= operand->val.f;
+		}
+		else if (operand->type == PTYPE_INTEGER) {
+			accum->val.f *= operand->val.i;
+		}
+		else {
+			return false;
+		}
+	}
+	else if (accum->type == PTYPE_INTEGER) {
+		if (operand->type == PTYPE_INTEGER) {
+			accum->val.i *= operand->val.i;
+		}
+		else if (operand->type == PTYPE_FLOAT) {
+			accum->val.f = accum->val.i * operand->val.f;
+			accum->type = PTYPE_FLOAT;
+		}
+		else {
+			return false;
+		}
+	}
+	free(operand);
+	return true;
+}
+
+/* 
+ * function:	exec_div
+ * TODO: type checks and error reporting
+ * -------------------------------------------------- 
+ */
+bool exec_div(tnode_s *accum, tnode_s *operand) {
+	if (accum->type == PTYPE_FLOAT) {
+		if (operand->type == PTYPE_FLOAT) {
+			accum->val.f /= operand->val.f;
+		}
+		else if (operand->type == PTYPE_INTEGER) {
+			accum->val.f /= operand->val.i;
+		}
+		else {
+			return false;
+		}
+	}
+	else if (accum->type == PTYPE_INTEGER) {
+		if (operand->type == PTYPE_INTEGER) {
+			accum->val.i /= operand->val.i;
+		}
+		else if (operand->type == PTYPE_FLOAT) {
+			accum->val.f = accum->val.i / operand->val.f;
+			accum->type = PTYPE_FLOAT;
+		}
+		else {
+			return false;
+		}
+	}
+	free(operand);
+	return true;
+}
+
+/* 
+ * function:	concat_str_integer
+ * -------------------------------------------------- 
+ */
+char *concat_str_integer(int i, char *str) {
+	size_t n = strlen(str) + 8, realn;
+	char *nstr = malloc(n);
+	if (!nstr) {
 		return NULL;
 	}
-	t->c.b.left = l;
-	t->val = val;
+	realn = snprintf(nstr, n, "%s%d", str, i);
+	if (realn - 1 > n) {
+		free(nstr);
+		nstr = malloc(realn + 1);
+		if (!nstr) {
+			return NULL;
+		}
+	}
+	sprintf(nstr, "%s%d", str, i);
+	return nstr;
+}
+
+/* 
+ * function:	concat_integer_str
+ * -------------------------------------------------- 
+ */
+char *concat_integer_str(int i, char *str) {
+	size_t n = strlen(str) + 8, realn;
+	char *nstr = malloc(n);
+	if (!nstr) {
+		return NULL;
+	}
+	realn = snprintf(nstr, n, "%d%s", str, i);
+	if (realn - 1 > n) {
+		free(nstr);
+		nstr = malloc(realn + 1);
+		if (!nstr) {
+			return NULL;
+		}
+		sprintf(nstr, "%s%d", str, i);
+	}
+	return nstr;
+}
+
+/* 
+ * function:	concat_str_double
+ * -------------------------------------------------- 
+ */
+char *concat_str_double(char *str, double d) {
+	size_t n = strlen(str) + 8, realn;
+	char *nstr = malloc(n);
+	if (!nstr) {
+		return NULL;
+	}
+	realn = snprintf(nstr, n, "%s%f", str, d);
+	if (realn - 1 > n) {
+		free(nstr);
+		nstr = malloc(realn + 1);
+		if (!nstr) {
+			return NULL;
+		}
+	}
+	sprintf(nstr, "%s%d", str, d);
+	return nstr;
+}
+
+/* 
+ * function:	concat_double_str
+ * -------------------------------------------------- 
+ */
+char *concat_double_str(double d, char *str) {
+	size_t n = strlen(str) + 8, realn;
+	char *nstr = malloc(n);
+	if (!nstr) {
+		return NULL;
+	}
+	realn = snprintf(nstr, n, "%f%s", str, d);
+	if (realn - 1 > n) {
+		free(nstr);
+		nstr = malloc(realn + 1);
+		if (!nstr) {
+			return NULL;
+		}
+		sprintf(nstr, "%s%d", str, d);
+	}
+	return nstr;
+}
+
+/* 
+ * function:	concat_str
+ * -------------------------------------------------- 
+ */
+char *concat_str_str(char *str1, char *str2) {
+	size_t n = strlen(str1) + strlen(str2) + 1;
+	char *nstr = malloc(n);
+	if (!nstr) {
+		return NULL;
+	}
+	sprintf("%s%s", str1, str2);
+	return nstr;
+}
+
+/* 
+ * function:	tnode_create_str
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_str(p_notetype_e type, unsigned lineno, char *s) {
+	tnode_s *t = malloc(sizeof *t);	
+	if (!t) {
+		return NULL;
+	}
 	t->type = type;
-	t->c.b.right = r;
+	t->lineno = lineno;
+	t->val.s = s;
 	return t;
 }
 
-tnode_s *tnode_init_child(p_nodetype_e type, tok_s *val, tnode_s *child) {
-	tnode_s *t = malloc(sizeof *t);
-	if(!t) {
-		perror("Memory Error in malloc() while allocating new tnode with child");
+/* 
+ * function:	tnode_create_int
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_int(p_notetype_e type, unsigned lineno, int i) {
+	tnode_s *t = malloc(sizeof *t);	
+	if (!t) {
 		return NULL;
 	}
-	t->c.child = child;
-	t->val = val;
 	t->type = type;
+	t->lineno = lineno;
+	t->val.i = i;
 	return t;
 }
 
-tnode_s *tnode_init_children(p_nodetype_e type, tok_s *val, tnode_list_s children) {
-	tnode_s *t = malloc(sizeof *t);
-	if(!t) {
-		perror("Memory Error in malloc() while allocating new tnode with children");
+/* 
+ * function:	tnode_create_float
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_float(p_notetype_e type, unsigned lineno, double f) {
+	tnode_s *t = malloc(sizeof *t);	
+	if (!t) {
 		return NULL;
 	}
-	t->c.children = children;
-	t->val = val;
 	t->type = type;
+	t->lineno = lineno;
+	t->val.f = f;
 	return t;
-}
-
-tnode_s *tnode_init_dict(p_nodetype_e type, tok_s *val, StrMap *dict) {
-	tnode_s *t = malloc(sizeof *t);
-	if(!t) {
-		perror("Memory Error in malloc() while allocating a new tnode with dictionary");
-		return NULL;
-	}
-	t->c.dict = dict;
-	t->val = val;
-	t->type = type;
-	return t;
-}
-
-tnode_s *tnode_init_func(tnode_s *funcref, tnode_list_s callargs, tok_s *t) {
-	tnode_s *f = malloc(sizeof *f);
-	if(!f) {
-		perror("Memory Error in malloc() while allocating a new tnode for function call");
-		return NULL;
-	}
-	f->c.f.funcref = funcref;
-	f->c.f.callargs = callargs;
-	f->val = t;
-	f->type = PTYPE_CALL;
-	return f;
-}
-
-int tnode_listadd(tnode_list_s *list, tnode_s *child) {
-	tnode_s **nlist;
-	list->size++;
-	nlist = realloc(list->list, sizeof(*list->list) * list->size);
-	if(!nlist) {
-		perror("Memory Error in realloc() while adding tnode to tnode list");
-		list->size--;
-		return -1;
-	}
-	list->list = nlist;
-	list->list[list->size - 1] = child;
-	return 0;
 }
 
 void report_syntax_error(const char *message, p_context_s *context) {
@@ -770,165 +984,4 @@ void report_semantics_error(const char *message, p_context_s *context) {
 	fprintf(stderr, "Error at line %u, token '%s': %s\n", t->lineno, t->lexeme, message);
 }
 
-void print_parse_tree(p_context_s *context) {
-	CharBuf buf;
-
-	char_buf_init(&buf);
-	print_parse_node(context->root, &buf);
-	char_buf_free(&buf);
-}
-
-void print_parse_subtree(tnode_s *root) {
-	CharBuf buf;
-
-	char_buf_init(&buf);
-	print_parse_node(root, &buf);
-	char_buf_free(&buf);
-}
-
-void print_parse_node(tnode_s *root, CharBuf *buf) {
-	switch(root->type) {
-		case PTYPE_ROOT:
-		case PTYPE_ADDITION:
-		case PTYPE_SUBTRACTION:
-		case PTYPE_MULTIPLICATION:
-		case PTYPE_DIVISION:
-		case PTYPE_ASSIGN:
-		case PTYPE_ACCESS_DICT:
-		case PTYPE_ACCESS_ARRAY:
-		case PTYPE_ARRAY_DEC:
-		case PTYPE_DEC:
-			print_bin_op(root, buf);
-			break;
-		case PTYPE_NEGATION:
-		case PTYPE_POS:
-			print_child(root, buf);
-			break;
-		case PTYPE_VAL:
-		case PTYPE_BASIC_DEC:
-			print_leaf(root, buf);
-			break;
-		case PTYPE_STATEMENTLIST:
-		case PTYPE_ARRAY:
-			print_list(root, buf);
-			break;
-		case PTYPE_OBJECT:
-			print_dict(root, buf);
-			break;
-		case PTYPE_CALL:
-			print_func(root, buf);
-			break;
-		case PTYPE_ANY:
-			printf("%s--[ANY]\n", buf->buffer);
-			break;
-		default:
-			break;
-	}
-}
-
-void print_bin_op(tnode_s *root, CharBuf *buf) {
-	char *lex;
-
-	switch(root->type) {
-		case PTYPE_ROOT:
-			lex = "root";
-			break;
-		case PTYPE_ACCESS_ARRAY:
-		case PTYPE_ARRAY_DEC:
-			lex = "[]";
-			break;
-		case PTYPE_DEC:
-			lex = "DEC";
-			break;
-		default:
-			lex = root->val->lexeme;
-			break;
-	}
-
-	printf("%s--[%s]\n", buf->buffer, lex);
-	print_add_depth(buf);
-	printf("%s\n", buf->buffer);
-	print_parse_node(root->c.b.left, buf);
-	printf("%s\n", buf->buffer);
-	print_parse_node(root->c.b.right, buf);
-	print_pop_depth(buf);
-}
-
-void print_child(tnode_s *root, CharBuf *buf) {
-	printf("%s--[%s]\n", buf->buffer, root->val->lexeme);
-	print_add_depth(buf);
-	printf("%s\n", buf->buffer);
-	print_parse_node(root->c.child, buf);
-	print_pop_depth(buf);
-}
-
-void print_dict(tnode_s *root, CharBuf *buf) {
-	int i;
-	StrMap *map = root->c.dict;
-	StrMapEntry *entry;
-	printf("%s--[object]\n", buf->buffer);
-	print_add_depth(buf);
-	for(i = 0; i < MAP_TABLE_SIZE; i++) {
-		entry = map->table[i];
-		while(entry) {
-			printf("%s\n", buf->buffer);
-			printf("%s--[%s]\n", buf->buffer, entry->key);
-			print_add_depth(buf);
-			printf("%s\n", buf->buffer);
-			print_parse_node(entry->val, buf);
-			print_pop_depth(buf);
-			entry = entry->next;
-		}
-	}
-	print_pop_depth(buf);
-}
-
-void print_list(tnode_s *root, CharBuf *buf) {
-	int i;
-	tnode_list_s *children = &root->c.children;
-	printf("%s--[nodelist]\n", buf->buffer);
-	print_add_depth(buf);
-	for(i = 0; i < children->size; i++) {
-		printf("%s\n", buf->buffer);
-		print_parse_node(children->list[i], buf);
-	}
-	print_pop_depth(buf);
-}
-
-void print_leaf(tnode_s *root, CharBuf *buf) {
-	printf("%s--[%s]\n", buf->buffer, root->val->lexeme);
-}
-
-void print_func(tnode_s *root, CharBuf *buf) {
-	int i;
-	tnode_list_s *args = &root->c.f.callargs;
-	printf("%s--[call]\n", buf->buffer);
-	print_add_depth(buf);
-	printf("%s\n", buf->buffer);
-	print_parse_node(root->c.f.funcref, buf);
-	print_add_depth(buf);
-	if(args->size == 0) {
-		printf("%s--[void]\n", buf->buffer);
-	}
-	else {
-		for(i = 0; i < args->size; i++) {
-			printf("%s\n", buf->buffer);
-			print_parse_node(args->list[i], buf);
-		}
-	}
-	print_pop_depth(buf);
-	print_pop_depth(buf);
-}
-
-void print_add_depth(CharBuf *buf) {
-  char_add_c(buf, ' ');
-  char_add_c(buf, ' ');
-  char_add_c(buf, '|');
-}
-
-void print_pop_depth(CharBuf *buf) {
-	char_popback_c(buf);
-	char_popback_c(buf);
-	char_popback_c(buf);
-}
 

@@ -57,15 +57,31 @@ Semantic Functions:
 <optAssign> ::= ":=" <expression> | E
 
 <type> ::= <basicType> <optArray>
+{
+	<type>.type := maketype(<basicType>.type, <optArray>.list)
+}
 
 <basicType> ::=
-	"Shader" | "Texture" 
-	| "Program" | "Mesh" 
-	| "Model" | "Instance" 
-	| "Num" | "String"
-	| "Dict" | "$"
+	"Shader" { this.type := "Shader" }
+	| "Texture" { this.type := "Texture" }
+	| "Program" { this.type := "Program" }
+	| "Mesh" { this.type := "Mesh" }
+	| "Model" { this.type := "Model" }
+	| "Instance" { this.type := "Instance" }
+	| "Num" { this.type := "Num" }
+	| "String" { this.type := "String" }
+	| "Dict" { this.type := "Dict" }
+	| "$"
 
-<optArray> ::= [ <optExpression> ] <optArray> | E
+<optArray> ::= 
+	[ <optExpression> ] <optArray> 
+	{
+		assert(<optExpression>.type = null || <optExpression>.type = Num)
+		if (this.list == null)
+			this.list := mklist()
+		this.list.add(<optExpression>.val)
+	}
+	| E { this.type := null }
 
 <assignstmt> ::= identifier <idsuffix> ":=" <expression>
 
@@ -73,21 +89,11 @@ Semantic Functions:
 
 <expression> ::= <term> <expression_> 
 {
-	if <expression_> <> E:
-		this.node := makeNode(<expression_>.op, <term>.node, <expression>.<term>.node)
-	else:
-
-	fi
 }
 
 <expression_> ::= 
-	addop <term> [1] <expression_> 
+	addop <term> [1] <expression_> [2]
 	{
-		phase1.[1]:
-			_root := makeNode(_root, addop, <term>)
-			call <expression_> {
-				<expression_>.root := _root
-			}
 	}
 	| 
 	E
@@ -99,18 +105,117 @@ Semantic Functions:
 <term_> ::= mulop <factor> <term_> | E
 
 <factor> ::= 
-	<sign> <expression> <idsuffix>
-	| identifier <idsuffix> 
-	| number | string <idsuffix>
-	| "(" <expression> ")" <idsuffix>
-	| <object> <idsuffix>
-	| <array> <idsuffix>
+	<sign> <expression> [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := <expression>.type	
+			this.val := <expression>.val
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| identifier [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := lookupId(identifier).type
+			this.val := lookupId(identifier).val.
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| number
+	{
+		this.type := Num
+		this.val := number.val
+	}
+	| string [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := String
+			this.val := string.val
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| "(" <expression> ")" [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := <expression>.type
+			this.val := <expression>.val
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| <object> [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := <object>.type
+			this.val := <object>.val
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| <array> [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := <array>.type
+			this.val := <array>.val
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
 
 <idsuffix> ::= 
-	"." identifier <idsuffix>
-	| "(" <expressionList> ")" <idsuffix>
-	| "[" <expression> "]" <idsuffx>
-	| E
+	"." identifier [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := lookupType(parent.type, identifer)
+			this.val := dictAccess(parent.val, identifier)
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| "(" <expressionList> ")" [1] <idsuffix> [2]
+	{
+		[1] {
+			this.type := call(parent.val, <expressionList>.val).type
+			this.val := call(parent.val, <expressionList>.val).val
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| "[" <expression> "]" [1]  <idsuffx> [2]
+	{
+		[1] {
+			assert(<expression>.type = Num)
+			this.type := accessArray(parent.val, <expression>.val).type
+			this.val := accessArray(parent.val, <expression>.val).val
+		}
+		[2] {
+			this.type := <idsuffix>.type
+			this.val := <idsuffix>.val
+		}
+	}
+	| E {
+		this.type := parent.type
+		this.val := parent.val
+	}
 
 <expressionList> ::= 
 	<expression> <expressionList'> 
@@ -123,4 +228,7 @@ Semantic Functions:
 <object> ::= "{" <propertyList> "}"
 
 <array> ::= "[" <expressionList> "]"
+{
+}
+
 

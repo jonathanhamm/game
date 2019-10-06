@@ -163,7 +163,7 @@ toklist_s lex(const char *file_name) {
 							while (isdigit(*++fptr));	
 							bck = *fptr;	
 							*fptr = '\0';
-							add_token(&list, bptr, fptr - bptr, lineno, TOK_NUMBER);
+							add_token(&list, bptr, fptr - bptr, lineno, TOK_FLOAT);
 							*fptr = bck;
 						}
 						else {
@@ -174,7 +174,7 @@ toklist_s lex(const char *file_name) {
 					else {
 						bck = *fptr;	
 						*fptr = '\0';
-						add_token(&list, bptr, fptr - bptr, lineno, TOK_NUMBER);
+						add_token(&list, bptr, fptr - bptr, lineno, TOK_INTEGER);
 						*fptr = bck;
 					}
 				}
@@ -219,8 +219,10 @@ int tok_keyword(char *ptr) {
 		return TOK_MESH_DEC;
 	else if(!strcmp(ptr, "Instance"))
 		return TOK_INSTANCE_DEC;
-	else if(!strcmp(ptr, "Num"))
-		return TOK_NUM_DEC;
+	else if(!strcmp(ptr, "Float"))
+		return TOK_FLOAT_DEC;
+	else if(!strcmp(ptr, "Int"))
+		return TOK_INTEGER_DEC;
 	else if(!strcmp(ptr, "String"))
 		return TOK_STRING_DEC;
 	else if(!strcmp(ptr, "Dict"))

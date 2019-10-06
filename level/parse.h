@@ -12,25 +12,13 @@ typedef struct tnode_s tnode_s;
 typedef struct symtable_node_s symtable_node_s;
 
 enum p_nodetype_e {
-	PTYPE_ADDITION,
-	PTYPE_SUBTRACTION,
-	PTYPE_MULTIPLICATION,
-	PTYPE_DIVISION,
-	PTYPE_NEGATION,
-	PTYPE_POS,
-	PTYPE_VAL,
-	PTYPE_ARRAY,
-	PTYPE_OBJECT,
-	PTYPE_CALL,
-	PTYPE_ACCESS_DICT,
-	PTYPE_ACCESS_ARRAY,
-	PTYPE_BASIC_DEC,
-	PTYPE_ARRAY_DEC,
-	PTYPE_ASSIGN,
-	PTYPE_DEC,
-	PTYPE_STATEMENTLIST,
-	PTYPE_ROOT,
-	PTYPE_ANY
+	PTYPE_INT,
+	PTYPE_FLOAT,
+	PTYPE_STRING,
+	PTYPE_SHADER,
+	PTYPE_TEXTURE,
+	PTYPE_PROGRAM,
+	PTYPE_OBJECT
 };
 
 struct p_context_s {
@@ -47,19 +35,13 @@ struct tnode_list_s {
 
 struct tnode_s {
 	p_nodetype_e type;
-	tok_s *val;
+	unsigned lineno;
 	union {
-		struct {
-			tnode_s *left, *right;
-		} b;
-		struct {
-			tnode_s *funcref;
-			tnode_list_s callargs;
-		} f;
-		tnode_list_s children;
-		tnode_s *child;
-		StrMap *dict;
-	} c ;
+		char *s;
+		int i;
+		double f;
+		StrMap map;
+	} val;
 };
 
 struct symtable_node_s {

@@ -1,6 +1,8 @@
 .*.swp
 *.*.swp
 *.swp
+.RData
+.Rhistory
 game
 level/level
 
