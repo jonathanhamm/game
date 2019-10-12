@@ -69,10 +69,12 @@ static tnode_s *parse_object(p_context_s *context);
 static tnode_s *parse_array(p_context_s *context);
 static void parse_next_tok(p_context_s *context);
 
+static bool exec_negate(tnode_s *operand);
 static bool exec_sub(tnode_s *accum, tnode_s *operand);
 static bool exec_add(tnode_s *accum, tnode_s *operand);
 static bool exec_mult(tnode_s *accum, tnode_s *operand);
 static bool exec_div(tnode_s *accum, tnode_s *operand);
+static tnode_s *sym_lookup(p_context_s *context, char *key);
 static char *concat_str_integer(int i, char *str);
 static char *concat_integer_str(int i, char *str);
 static char *concat_str_double(char *str, double d);
@@ -451,15 +453,18 @@ tnode_s *parse_factor(p_context_s *context) {
 				tok_s *addop = context->currtok;
 				parse_next_tok(context);
 				tnode_s *expression = parse_expression(context);
-				if(!strcmp(addop->lexeme, "-"))
-					factor = tnode_init_child(PTYPE_NEGATION, addop, expression);
-				else
-					factor = tnode_init_child(PTYPE_POS, addop, expression);
+				if(!strcmp(addop->lexeme, "-")) {
+					//TODO: handle return value
+					exec_negate(expression);
+				}
 				parse_idsuffix(context, &factor);
 			}
 			break;
 		case TOK_IDENTIFIER:
-			factor = tnode_init_val(context->currtok);
+			factor = sym_lookup(context, context->currtok->lexeme);
+			if (!factor) {
+				//TODO: handle error where factor is not present
+			}
 			parse_next_tok(context);
 			parse_idsuffix(context, &factor);
 			break;
@@ -667,6 +672,23 @@ void parse_next_tok(p_context_s *context) {
 }
 
 /* 
+ * function:	exec_negate
+ * TODO: type checks and error reporting
+ * -------------------------------------------------- 
+ */
+bool exec_negate(tnode_s *operand) {
+	if (operand->type == PTYPE_INTEGER) {
+		accum->val.i = -accum->val.i;
+		return true;
+	}
+	else if (operand->type == PTYPE_FLOAT) {
+		accum->val.f = -accum->val.f;
+		return true;
+	}
+	return false;
+}
+
+/* 
  * function:	exec_sub 
  * TODO: type checks and error reporting
  * -------------------------------------------------- 
@@ -823,6 +845,14 @@ bool exec_div(tnode_s *accum, tnode_s *operand) {
 	}
 	free(operand);
 	return true;
+}
+
+/* 
+ * function:	sym_lookup
+ * -------------------------------------------------- 
+ */
+tnode_s *sym_lookup(p_context_s *context, char *key) {
+	return bob_str_map_get(&context->symtable, key);	
 }
 
 /* 
