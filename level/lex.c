@@ -222,7 +222,7 @@ int tok_keyword(char *ptr) {
 	else if(!strcmp(ptr, "Float"))
 		return TOK_FLOAT_DEC;
 	else if(!strcmp(ptr, "Int"))
-		return TOK_INTEGER_DEC;
+		return TOK_INT_DEC;
 	else if(!strcmp(ptr, "String"))
 		return TOK_STRING_DEC;
 	else if(!strcmp(ptr, "Dict"))

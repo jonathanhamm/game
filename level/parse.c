@@ -1,5 +1,4 @@
 #include "parse.h"
-//#include "error.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -52,15 +51,15 @@ static tnode_s *parse_body(p_context_s *context);
 static void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist);
 static tnode_s *parse_statement(p_context_s *context);
 static tnode_s *parse_declaration(p_context_s *context);
-static void parse_opt_assign(p_context_s *context, tnode_s **pident);
+static void parse_opt_assign(p_context_s *context, symtable_node_s *symnode);
 static tnode_s *parse_type(p_context_s *context);
 static tnode_s *parse_basic_type(p_context_s *context);
-static void parse_opt_array(p_context_s *context, tnode_s **ptype);
+static void parse_opt_array(p_context_s *context, tnode_list_s *arr);
 static tnode_s *parse_assignstmt(p_context_s *context);
 static tnode_s *parse_expression(p_context_s *context);
 static void parse_expression_(p_context_s *context, tnode_s *root);
 static tnode_s *parse_term(p_context_s *context);
-static void parse_term_(p_context_s *context, tnode_s **root);
+static void parse_term_(p_context_s *context, tnode_s *root);
 static tnode_s *parse_factor(p_context_s *context);
 static void parse_idsuffix(p_context_s *context, tnode_s **pfactor);
 static tnode_list_s parse_expression_list(p_context_s *context);
@@ -68,21 +67,29 @@ static void parse_expression_list_(p_context_s *context, tnode_list_s *list);
 static tnode_s *parse_object(p_context_s *context);
 static tnode_s *parse_array(p_context_s *context);
 static void parse_next_tok(p_context_s *context);
-
 static bool exec_negate(tnode_s *operand);
 static bool exec_sub(tnode_s *accum, tnode_s *operand);
 static bool exec_add(tnode_s *accum, tnode_s *operand);
 static bool exec_mult(tnode_s *accum, tnode_s *operand);
 static bool exec_div(tnode_s *accum, tnode_s *operand);
+static tnode_s *exec_access_obj(tnode_s *obj, char *key);
+static tnode_s *exec_access_arr(tnode_s *arr, tnode_s *index);
 static tnode_s *sym_lookup(p_context_s *context, char *key);
-static char *concat_str_integer(int i, char *str);
+static char *concat_str_integer(char *str, int i);
 static char *concat_integer_str(int i, char *str);
 static char *concat_str_double(char *str, double d);
 static char *concat_double_str(double d, char *str);
 static char *concat_str_str(char *str1, char *str2);
-static tnode_s *tnode_create_str(p_notetype_e type, unsigned lineno, char *s);
-static tnode_s *tnode_create_int(p_notetype_e type, unsigned lineno, int i);
-static tnode_s *tnode_create_float(p_notetype_e type, unsigned lineno, double f);
+static tnode_s *tnode_create_x(void);
+static tnode_s *tnode_create_str(unsigned lineno, char *s);
+static tnode_s *tnode_create_int(unsigned lineno, int i);
+static tnode_s *tnode_create_float(unsigned lineno, double f);
+static tnode_s *tnode_create_object(unsigned lineno, StrMap *obj);
+static tnode_s *tnode_create_array(unsigned lineno, tnode_list_s list);
+static tnode_s *tnode_create_basic_type(unsigned lineno, p_nodetype_e type);
+static tnode_s *tnode_create_array_type(unsigned lineno, tnode_arraytype_val_s atval);
+static void tnode_list_init(tnode_list_s *list);
+static int tnode_list_add(tnode_list_s *list, tnode_s *node);
 static void report_syntax_error(const char *message, p_context_s *context);
 static void report_semantics_error(const char *message, p_context_s *context);
 
@@ -103,7 +110,6 @@ p_context_s parse(toklist_s *list) {
 	if (context.currtok->type != TOK_EOF) {
 		report_syntax_error("Expected end of source file", &context);
 	}
-	context.root = tnode_init_bin(header, list->head, PTYPE_ROOT, body);
 	return context;
 }
 
@@ -137,7 +143,7 @@ StrMap *parse_property_list(p_context_s *context) {
  * -------------------------------------------------- 
  */
 void parse_property_list_(p_context_s *context, StrMap *map) {
-	if (context->currtok->type == TOK_COMMA) {
+	if(context->currtok->type == TOK_COMMA) {
 		parse_next_tok(context);
 		parse_property(context, map);
 		parse_property_list_(context, map);
@@ -182,7 +188,6 @@ tnode_s *parse_body(p_context_s *context) {
 		if(context->currtok->type != TOK_RBRACE) {
 			report_syntax_error("Expected '}'", context);
 		}
-		body = tnode_init_children(PTYPE_STATEMENTLIST, stmttok, stmtlist);
 	}
 	else {
 		report_syntax_error("Expected '{'", context);
@@ -214,7 +219,6 @@ void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist) {
 			if(context->currtok->type == TOK_SEMICOLON) {
 				parse_next_tok(context);
 			}
-			tnode_listadd(stmtlist, stmt);
 			parse_statement_list(context, stmtlist);
 			break;
 		default:
@@ -243,23 +247,29 @@ tnode_s *parse_statement(p_context_s *context) {
  */
 tnode_s *parse_declaration(p_context_s *context) {
 	tnode_s *result = NULL, *typenode;
+	symtable_node_s *symnode = NULL;
 	tok_s *typetok = context->currtok;
 	typenode = parse_type(context);
 	if(context->currtok->type == TOK_IDENTIFIER) {
 		tok_s *identtok = context->currtok;
 		char *ident = identtok->lexeme;
-		symtable_node_s *symnode = malloc(sizeof *symnode);
-		if(!symnode) {
-			perror("Memory Allocation error in malloc while allocating a symtable node.");
-			return NULL;
+		if (!bob_str_map_get(&context->symtable, ident)) {
+			symnode = malloc(sizeof *symnode);
+			if(!symnode) {
+				perror("Memory Allocation error in malloc while allocating a symtable node.");
+				return NULL;
+			}
+			symnode->evalflag = false;
+			symnode->node = NULL;
+			symnode->node = tnode_create_x();
+			bob_str_map_insert(&context->symtable, ident, symnode);
+			parse_next_tok(context);
+			parse_opt_assign(context, symnode);
 		}
-		symnode->evalflag = false;
-		symnode->node = NULL;
-		tnode_s	*dectarget = tnode_init_val(identtok);
-		bob_str_map_insert(&context->symtable, ident, symnode);
-		parse_next_tok(context);
-		parse_opt_assign(context, &dectarget);
-		result = tnode_init_bin(typenode, typetok, PTYPE_DEC, dectarget);
+		else {
+			report_semantics_error("Redeclaration of variable", context);
+		}
+		parse_opt_assign(context, symnode);
 	}
 	else {
 		report_syntax_error("Expected identifier", context);
@@ -272,13 +282,16 @@ tnode_s *parse_declaration(p_context_s *context) {
  * function:	parse_opt_assign	
  * -------------------------------------------------- 
  */
-void parse_opt_assign(p_context_s *context, tnode_s **pident) {
+void parse_opt_assign(p_context_s *context, symtable_node_s *symnode) {
 	if(context->currtok->type == TOK_ASSIGN) {
 		tnode_s *expression;
 		tok_s *op = context->currtok;
 		parse_next_tok(context);
 		expression = parse_expression(context);
-		*pident = tnode_init_bin(*pident, op, PTYPE_ASSIGN, expression);
+		if (expression != NULL && symnode != NULL) {
+			symnode->node = expression;
+			symnode->evalflag = true;
+		}
 	}
 }
 
@@ -287,8 +300,16 @@ void parse_opt_assign(p_context_s *context, tnode_s **pident) {
  * -------------------------------------------------- 
  */
 tnode_s *parse_type(p_context_s *context) {
+	tnode_arraytype_val_s array;
+
+	tnode_list_init(&array.arr);
 	tnode_s *type = parse_basic_type(context);
-	parse_opt_array(context, &type);
+	parse_opt_array(context, &array.arr);
+	if (array.arr.size > 0) {
+		array.type = type->type;	
+		type->type = PTYPE_ARRAY_DEC;
+		type->val.atval = array;
+	}
 	return type;
 }
 
@@ -297,36 +318,58 @@ tnode_s *parse_type(p_context_s *context) {
  * -------------------------------------------------- 
  */
 tnode_s *parse_basic_type(p_context_s *context) {
-	tnode_s *type = NULL;
+	tnode_s *typenode = NULL;
+	p_nodetype_e type;
 	switch(context->currtok->type) {
 		case TOK_SHADER_DEC:
+			type = PTYPE_SHADER_DEC;
+			break;
 		case TOK_TEXTURE_DEC:
+			type = PTYPE_TEXTURE_DEC;
+			break;
 		case TOK_PROGRAM_DEC:
+			type = PTYPE_PROGRAM_DEC;
+			break;
 		case TOK_MESH_DEC:
+			type = PTYPE_MESH_DEC;
+			break;
 		case TOK_MODEL_DEC:
+			type = PTYPE_MODEL_DEC;
+			break;
 		case TOK_INSTANCE_DEC:
+			type = PTYPE_INSTANCE_DEC;
+			break;
 		case TOK_INT_DEC:
+			type = PTYPE_INT_DEC;
+			break;
 		case TOK_FLOAT_DEC:
+			type = PTYPE_FLOAT_DEC;
+			break;
 		case TOK_DICT_DEC:
+			type = PTYPE_DICT_DEC;
+			break;
 		case TOK_STRING_DEC:
+			type = PTYPE_STRING_DEC;
+			break;
 		case TOK_GENERIC_DEC:
-			type = tnode_init_basictype(context->currtok);
-			parse_next_tok(context);
+			type = PTYPE_GENERIC_DEC;
 			break;
 		default:
 				report_syntax_error(
 					"Expected 'Shader', 'Texture', 'Program', 'Model', 'Instance', 'Num', 'Mesh', 'Dict', '*', or 'String'", context);
 			parse_next_tok(context);
-			break;
+			return NULL;
 	}
-	return type;
+	typenode = tnode_create_basic_type(context->currtok->lineno, type);
+	parse_next_tok(context);
+	return typenode;
 }
 
 /* 
  * function:	parse_opt_array	
  * -------------------------------------------------- 
  */
-void parse_opt_array(p_context_s *context, tnode_s **ptype) {
+void parse_opt_array(p_context_s *context, tnode_list_s *arr) {
 	if(context->currtok->type == TOK_LBRACK) {
 		tok_s *op = context->currtok;
 		parse_next_tok(context);
@@ -339,20 +382,12 @@ void parse_opt_array(p_context_s *context, tnode_s **ptype) {
 			case TOK_LBRACE:
 			case TOK_LBRACK: {
 					tnode_s *expression = parse_expression(context);
-					*ptype = tnode_init_bin(*ptype, op, PTYPE_ARRAY_DEC, expression);
+					tnode_list_add(arr, expression);
 				}
 				break;
-			default: {
-				tnode_s *narray = calloc(1, sizeof *narray);
-				if(narray) {
-					narray->type = PTYPE_ANY;
-					*ptype = tnode_init_bin(*ptype, op, PTYPE_ARRAY_DEC, narray);
-				}
-				else {
-					perror("Memory allocation error: calloc() in parse_opt_array() creating new tnode");
-				}
-			}
-			break;
+			default:
+				tnode_list_add(arr, NULL);
+				break;
 		}
 		if(context->currtok->type == TOK_RBRACK) {
 			parse_next_tok(context);
@@ -361,7 +396,7 @@ void parse_opt_array(p_context_s *context, tnode_s **ptype) {
 			report_syntax_error("Expected ']'", context);
 			parse_next_tok(context);
 		}
-		parse_opt_array(context, ptype);
+		parse_opt_array(context, arr);
 	}
 }
 
@@ -370,16 +405,21 @@ void parse_opt_array(p_context_s *context, tnode_s **ptype) {
  * -------------------------------------------------- 
  */
 tnode_s *parse_assignstmt(p_context_s *context) {
-	tnode_s *result = NULL, *dest;
+	symtable_node_s *symnode;
+	tnode_s *result = NULL, *ident;
 	tok_s *val = context->currtok;
-	dest = tnode_init_val(val);
+	symnode = bob_str_map_get(&context->symtable, val->lexeme);
 	parse_next_tok(context);	
-	parse_idsuffix(context, &dest);
+	parse_idsuffix(context, &symnode->node);
+	if (!symnode) {
+		report_semantics_error("Use of undeclared identifier", context);
+	}
 	if(context->currtok->type == TOK_ASSIGN) {
 		tok_s *assign = context->currtok;
 		parse_next_tok(context);
 		tnode_s *expression = parse_expression(context);	
-		result = tnode_init_bin(dest, assign, PTYPE_ASSIGN, expression);
+		symnode->evalflag = true;
+		symnode->node = expression;
 	}
 	else {
 		report_syntax_error("Expected ':='", context);
@@ -393,7 +433,7 @@ tnode_s *parse_assignstmt(p_context_s *context) {
  */
 tnode_s *parse_expression(p_context_s *context) {
 	tnode_s *root = parse_term(context);
-	parse_expression_(context, &root);
+	parse_expression_(context, root);
 	return root;
 }
 
@@ -406,10 +446,16 @@ void parse_expression_(p_context_s *context, tnode_s *root) {
 		tok_s *addop = context->currtok;
 		parse_next_tok(context);
 		tnode_s *term = parse_term(context);
-		if(!strcmp(addop->lexeme, "+"))
-			*root = tnode_init_bin(*root, addop, PTYPE_ADDITION, term); 
-		else
-			*root = tnode_init_bin(*root, addop, PTYPE_SUBTRACTION, term);
+		if (!strcmp(addop->lexeme, "+")) {
+			if (!exec_add(root, term)) {
+				// TODO: handle error
+			}
+		}
+		else {
+			if (!exec_add(root, term)) {
+				// TODO: handle error
+			}
+		}
 		parse_expression_(context, root);
 	}
 }
@@ -420,7 +466,7 @@ void parse_expression_(p_context_s *context, tnode_s *root) {
  */
 tnode_s *parse_term(p_context_s *context) {
 	tnode_s *root = parse_factor(context);
-	parse_term_(context, &root);
+	parse_term_(context, root);
 	return root;
 }
 
@@ -428,15 +474,21 @@ tnode_s *parse_term(p_context_s *context) {
  * function:	parse_term_	
  * -------------------------------------------------- 
  */
-void parse_term_(p_context_s *context, tnode_s **root) {
+void parse_term_(p_context_s *context, tnode_s *root) {
 	if (context->currtok->type == TOK_MULOP) {
 		tok_s *mulop = context->currtok;
 		parse_next_tok(context);
 		tnode_s *factor = parse_factor(context);
-		if(!strcmp(mulop->lexeme, "*"))
-			*root = tnode_init_bin(*root, mulop, PTYPE_MULTIPLICATION, factor);
-		else
-			*root = tnode_init_bin(*root, mulop, PTYPE_DIVISION, factor);
+		if(!strcmp(mulop->lexeme, "*")) {
+			if (!exec_mult(root, factor)) {
+				// TODO: handle error
+			}
+		}
+		else {
+			if (!exec_div(root, factor)) {
+				// TODO: handle error
+			}
+		}
 		parse_term_(context, root);
 	}
 }
@@ -446,7 +498,8 @@ void parse_term_(p_context_s *context, tnode_s **root) {
  * -------------------------------------------------- 
  */
 tnode_s *parse_factor(p_context_s *context) {
-	int i, double f;
+	int i; 
+	double f;
 	tnode_s *factor = NULL;
 	switch(context->currtok->type) {
 		case TOK_ADDOP: {
@@ -470,16 +523,16 @@ tnode_s *parse_factor(p_context_s *context) {
 			break;
 		case TOK_INTEGER:
 			i = atoi(context->currtok->lexeme);
-			factor = tnode_create_int(PTYPE_INT, context->currtok->lineno, i);
+			factor = tnode_create_int(context->currtok->lineno, i);
 			parse_next_tok(context);
 			break;
 		case TOK_FLOAT:
 			f = atof(context->currtok->lexeme);
-			factor = tnode_create_float(PTYPE_FLOAT, context->currtok->lineno, f);
+			factor = tnode_create_float(context->currtok->lineno, f);
 			parse_next_tok(context);
 			break;
 		case TOK_STRING:
-			factor = tnode_create_str(PTYPE_STRING, context->currtok->lineno, context->currtok->lexeme);
+			factor = tnode_create_str(context->currtok->lineno, context->currtok->lexeme);
 			parse_next_tok(context);
 			parse_idsuffix(context, &factor);
 			break;
@@ -521,9 +574,8 @@ void parse_idsuffix(p_context_s *context, tnode_s **pfactor) {
 			parse_next_tok(context);
 			if(context->currtok->type == TOK_IDENTIFIER) {
 				tok_s *tt = context->currtok;
-				tnode_s *val = tnode_init_val(tt);
-				*pfactor = tnode_init_bin(*pfactor, op, PTYPE_ACCESS_DICT, val);
 				parse_next_tok(context);
+				*pfactor = exec_access_obj(*pfactor, tt->lexeme);
 				parse_idsuffix(context, pfactor);
 			}
 			else {
@@ -537,7 +589,7 @@ void parse_idsuffix(p_context_s *context, tnode_s **pfactor) {
 				parse_next_tok(context);
 				expression_list = parse_expression_list(context);
 				if(context->currtok->type == TOK_RPAREN) {
-					*pfactor = tnode_init_func(*pfactor, expression_list, op);
+					// TODO: exec function
 					parse_next_tok(context);
 					parse_idsuffix(context, pfactor);
 				}
@@ -554,7 +606,7 @@ void parse_idsuffix(p_context_s *context, tnode_s **pfactor) {
 				expression = parse_expression(context);
 				if(context->currtok->type == TOK_RBRACK) {
 					parse_next_tok(context);
-					*pfactor = tnode_init_bin(*pfactor, op, PTYPE_ACCESS_ARRAY, expression);
+					*pfactor = exec_access_arr(*pfactor, expression);
 					parse_idsuffix(context, pfactor);
 				}
 				else {
@@ -579,7 +631,7 @@ tnode_list_s parse_expression_list(p_context_s *context) {
 		case TOK_ADDOP:
 			if(!strcmp(context->currtok->lexeme, "+") || !strcmp(context->currtok->lexeme, "-")) {
 				expression = parse_expression(context);
-				tnode_listadd(&list, expression);
+				tnode_list_add(&list, expression);
 				parse_expression_list_(context, &list);
 			}
 			break;
@@ -591,7 +643,7 @@ tnode_list_s parse_expression_list(p_context_s *context) {
 		case TOK_LBRACE:
 		case TOK_LBRACK:
 			expression = parse_expression(context);
-			tnode_listadd(&list, expression);
+			tnode_list_add(&list, expression);
 			parse_expression_list_(context, &list);
 			break;
 		default:
@@ -609,7 +661,7 @@ void parse_expression_list_(p_context_s *context, tnode_list_s *list) {
 		tnode_s *expression;
 		parse_next_tok(context);
 		expression = parse_expression(context);
-		tnode_listadd(list, expression);
+		tnode_list_add(list, expression);
 		parse_expression_list_(context, list);
 	}
 }
@@ -624,7 +676,7 @@ tnode_s *parse_object(p_context_s *context) {
 		tok_s *object = context->currtok;
 		parse_next_tok(context);
 		StrMap *dict = parse_property_list(context);
-		result = tnode_init_dict(PTYPE_OBJECT, object, dict);
+		result = tnode_create_object(object->lineno, dict);
 		if(context->currtok->type == TOK_RBRACE) {
 			parse_next_tok(context);
 		}
@@ -650,7 +702,7 @@ tnode_s *parse_array(p_context_s *context) {
 		tok_s *array = context->currtok;
 		parse_next_tok(context);
 		tnode_list_s list = parse_expression_list(context);
-		result = tnode_init_children(PTYPE_ARRAY, array, list);
+		result = tnode_create_array(array->lineno, list);
 		if(context->currtok->type == TOK_RBRACK) {
 			parse_next_tok(context);
 		}
@@ -677,12 +729,12 @@ void parse_next_tok(p_context_s *context) {
  * -------------------------------------------------- 
  */
 bool exec_negate(tnode_s *operand) {
-	if (operand->type == PTYPE_INTEGER) {
-		accum->val.i = -accum->val.i;
+	if (operand->type == PTYPE_INT) {
+		operand->val.i = -operand->val.i;
 		return true;
 	}
 	else if (operand->type == PTYPE_FLOAT) {
-		accum->val.f = -accum->val.f;
+		operand->val.f = -operand->val.f;
 		return true;
 	}
 	return false;
@@ -698,15 +750,15 @@ bool exec_sub(tnode_s *accum, tnode_s *operand) {
 		if (operand->type == PTYPE_FLOAT) {
 			accum->val.f -= operand->val.f;
 		}
-		else if (operand->type == PTYPE_INTEGER) {
+		else if (operand->type == PTYPE_INT) {
 			accum->val.f -= operand->val.i;
 		}
 		else {
 			return false;
 		}
 	}
-	else if (accum->type == PTYPE_INTEGER) {
-		if (operand->type == PTYPE_INTEGER) {
+	else if (accum->type == PTYPE_INT) {
+		if (operand->type == PTYPE_INT) {
 			accum->val.i -= operand->val.i;
 		}
 		else if (operand->type == PTYPE_FLOAT) {
@@ -731,20 +783,20 @@ bool exec_add(tnode_s *accum, tnode_s *operand) {
 		if (operand->type == PTYPE_FLOAT) {
 			accum->val.f += operand->val.f;
 		}
-		else if (operand->type == PTYPE_INTEGER) {
+		else if (operand->type == PTYPE_INT) {
 			accum->val.f += operand->val.i;
 		}
 		else if (operand->type == PTYPE_STRING) {
 			char *nstr = concat_double_str(accum->val.f, operand->val.s);	
 			accum->type = PTYPE_STRING;
-			accum->val.str = nstr;
+			accum->val.s = nstr;
 		}
 		else {
 			return false;
 		}
 	}
-	else if (accum->type == PTYPE_INTEGER) {
-		if (operand->type == PTYPE_INTEGER) {
+	else if (accum->type == PTYPE_INT) {
+		if (operand->type == PTYPE_INT) {
 			accum->val.i += operand->val.i;
 		}
 		else if (operand->type == PTYPE_FLOAT) {
@@ -754,7 +806,7 @@ bool exec_add(tnode_s *accum, tnode_s *operand) {
 		else if (operand->type == PTYPE_STRING) {
 			char *nstr = concat_integer_str(accum->val.i, operand->val.s);
 			accum->type = PTYPE_STRING;
-			accum->val.str = nstr;
+			accum->val.s = nstr;
 		}
 		else {
 			return false;
@@ -765,9 +817,9 @@ bool exec_add(tnode_s *accum, tnode_s *operand) {
 			char *nstr = concat_str_double(operand->val.s, accum->val.f);
 			accum->val.s = nstr;
 		}
-		else if (operand->type == PTYPE_INTEGER) {
-			char *nstr = concat_str_integer(accum->val.s, operand->val.f);
-			accum->val.s = = nstr;
+		else if (operand->type == PTYPE_INT) {
+			char *nstr = concat_str_integer(accum->val.s, operand->val.i);
+			accum->val.s = nstr;
 		}
 		else if (operand->type == PTYPE_STRING) {
 			char *nstr = concat_str_str(accum->val.s, operand->val.s);
@@ -791,15 +843,15 @@ bool exec_mult(tnode_s *accum, tnode_s *operand) {
 		if (operand->type == PTYPE_FLOAT) {
 			accum->val.f *= operand->val.f;
 		}
-		else if (operand->type == PTYPE_INTEGER) {
+		else if (operand->type == PTYPE_INT) {
 			accum->val.f *= operand->val.i;
 		}
 		else {
 			return false;
 		}
 	}
-	else if (accum->type == PTYPE_INTEGER) {
-		if (operand->type == PTYPE_INTEGER) {
+	else if (accum->type == PTYPE_INT) {
+		if (operand->type == PTYPE_INT) {
 			accum->val.i *= operand->val.i;
 		}
 		else if (operand->type == PTYPE_FLOAT) {
@@ -824,15 +876,15 @@ bool exec_div(tnode_s *accum, tnode_s *operand) {
 		if (operand->type == PTYPE_FLOAT) {
 			accum->val.f /= operand->val.f;
 		}
-		else if (operand->type == PTYPE_INTEGER) {
+		else if (operand->type == PTYPE_INT) {
 			accum->val.f /= operand->val.i;
 		}
 		else {
 			return false;
 		}
 	}
-	else if (accum->type == PTYPE_INTEGER) {
-		if (operand->type == PTYPE_INTEGER) {
+	else if (accum->type == PTYPE_INT) {
+		if (operand->type == PTYPE_INT) {
 			accum->val.i /= operand->val.i;
 		}
 		else if (operand->type == PTYPE_FLOAT) {
@@ -848,6 +900,65 @@ bool exec_div(tnode_s *accum, tnode_s *operand) {
 }
 
 /* 
+ * function:	exec_access_obj
+ * -------------------------------------------------- 
+ * TODO: error handling
+ */
+tnode_s *exec_access_obj(tnode_s *obj, char *key) {
+	tnode_s *result;
+	switch (obj->type) {
+		case PTYPE_SHADER:
+		case PTYPE_TEXTURE:
+		case PTYPE_PROGRAM:
+		case PTYPE_OBJECT:
+			break;
+		default:
+			perror("type error in exec_access_obj");
+			return NULL;
+	}
+	result = bob_str_map_get(obj->val.obj, key);
+	if (!result) {
+		perror("non-existant key used to access object");
+	}
+	return result;
+}
+
+/* 
+ * function:	exec_access_arr
+ * -------------------------------------------------- 
+ */
+tnode_s *exec_access_arr(tnode_s *arr, tnode_s *index) {
+	switch (arr->type) {
+		case PTYPE_ARRAY:
+			if (index->type != PTYPE_INT) {
+				perror("error attempt to access array with non-integer valued index");
+				return NULL;
+			}
+			return arr->val.atval.arr.list[index->val.i];
+		case PTYPE_SHADER:
+		case PTYPE_TEXTURE:
+		case PTYPE_PROGRAM:
+		case PTYPE_OBJECT:
+			if (index->type != PTYPE_STRING) {
+				perror("error attempt to access object with key of wrong type");
+				return NULL;
+			}
+			else {
+				tnode_s *result;
+				result = bob_str_map_get(arr->val.obj, index->val.s);
+				if (!result) {
+					perror("non-existant key used to access object");
+				}
+				return result;
+			}
+			break;
+		default:
+			perror("type error in exec_access_arr");
+			return NULL;
+	}
+}
+
+/* 
  * function:	sym_lookup
  * -------------------------------------------------- 
  */
@@ -859,7 +970,7 @@ tnode_s *sym_lookup(p_context_s *context, char *key) {
  * function:	concat_str_integer
  * -------------------------------------------------- 
  */
-char *concat_str_integer(int i, char *str) {
+char *concat_str_integer(char *str, int i) {
 	size_t n = strlen(str) + 8, realn;
 	char *nstr = malloc(n);
 	if (!nstr) {
@@ -887,7 +998,7 @@ char *concat_integer_str(int i, char *str) {
 	if (!nstr) {
 		return NULL;
 	}
-	realn = snprintf(nstr, n, "%d%s", str, i);
+	realn = snprintf(nstr, n, "%d%s", i, str);
 	if (realn - 1 > n) {
 		free(nstr);
 		nstr = malloc(realn + 1);
@@ -917,7 +1028,7 @@ char *concat_str_double(char *str, double d) {
 			return NULL;
 		}
 	}
-	sprintf(nstr, "%s%d", str, d);
+	sprintf(nstr, "%s%f", str, d);
 	return nstr;
 }
 
@@ -931,14 +1042,14 @@ char *concat_double_str(double d, char *str) {
 	if (!nstr) {
 		return NULL;
 	}
-	realn = snprintf(nstr, n, "%f%s", str, d);
+	realn = snprintf(nstr, n, "%f%s", d, str);
 	if (realn - 1 > n) {
 		free(nstr);
 		nstr = malloc(realn + 1);
 		if (!nstr) {
 			return NULL;
 		}
-		sprintf(nstr, "%s%d", str, d);
+		sprintf(nstr, "%f%s", d, str);
 	}
 	return nstr;
 }
@@ -958,15 +1069,27 @@ char *concat_str_str(char *str1, char *str2) {
 }
 
 /* 
+ * function:	tnode_create_x
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_x(void) {
+	tnode_s *t = calloc(sizeof *t, 1);
+	if (!t) {
+		return NULL;
+	}
+	return t;
+}
+
+/* 
  * function:	tnode_create_str
  * -------------------------------------------------- 
  */
-tnode_s *tnode_create_str(p_notetype_e type, unsigned lineno, char *s) {
+tnode_s *tnode_create_str(unsigned lineno, char *s) {
 	tnode_s *t = malloc(sizeof *t);	
 	if (!t) {
 		return NULL;
 	}
-	t->type = type;
+	t->type = PTYPE_STRING;
 	t->lineno = lineno;
 	t->val.s = s;
 	return t;
@@ -976,12 +1099,12 @@ tnode_s *tnode_create_str(p_notetype_e type, unsigned lineno, char *s) {
  * function:	tnode_create_int
  * -------------------------------------------------- 
  */
-tnode_s *tnode_create_int(p_notetype_e type, unsigned lineno, int i) {
+tnode_s *tnode_create_int(unsigned lineno, int i) {
 	tnode_s *t = malloc(sizeof *t);	
 	if (!t) {
 		return NULL;
 	}
-	t->type = type;
+	t->type = PTYPE_INT;
 	t->lineno = lineno;
 	t->val.i = i;
 	return t;
@@ -991,15 +1114,94 @@ tnode_s *tnode_create_int(p_notetype_e type, unsigned lineno, int i) {
  * function:	tnode_create_float
  * -------------------------------------------------- 
  */
-tnode_s *tnode_create_float(p_notetype_e type, unsigned lineno, double f) {
+tnode_s *tnode_create_float(unsigned lineno, double f) {
+	tnode_s *t = malloc(sizeof *t);	
+	if (!t) {
+		return NULL;
+	}
+	t->type = PTYPE_FLOAT;
+	t->lineno = lineno;
+	t->val.f = f;
+	return t;
+}
+
+/* 
+ * function:	tnode_create_object
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_object(unsigned lineno, StrMap *obj) {
+	tnode_s *t = malloc(sizeof *t);	
+	if (!t) {
+		return NULL;
+	}
+	t->type = PTYPE_OBJECT;
+	t->lineno = lineno;
+	t->val.obj = obj;
+	return t;
+}
+
+/* 
+ * function:	tnode_create_array
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_array(unsigned lineno, tnode_list_s list) {
+	tnode_s *t = malloc(sizeof *t);	
+	if (!t) {
+		return NULL;
+	}
+	t->type = PTYPE_ARRAY;
+	t->lineno = lineno;
+	t->val.list = list;
+	return t;
+}
+
+/* 
+ * function:	tnode_create_basic_type
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_basic_type(unsigned lineno, p_nodetype_e type) {
 	tnode_s *t = malloc(sizeof *t);	
 	if (!t) {
 		return NULL;
 	}
 	t->type = type;
 	t->lineno = lineno;
-	t->val.f = f;
 	return t;
+}
+
+/* 
+ * function:	tnode_create_array_type
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_array_type(unsigned lineno, tnode_arraytype_val_s atval) {
+	tnode_s *t = malloc(sizeof *t);
+	t->type = PTYPE_ARRAY_DEC;
+	t->lineno = lineno;
+	t->val.atval = atval;
+	return t;
+}
+
+/* 
+ * function:	tnode_list_init
+ * -------------------------------------------------- 
+ */
+void tnode_list_init(tnode_list_s *list) {
+	list->size = 0;
+	list->list = NULL;
+}
+
+/* 
+ * function:	tnode_list_add
+ * -------------------------------------------------- 
+ */
+int tnode_list_add(tnode_list_s *list, tnode_s *node) {
+	list->size++;
+	list->list = realloc(list->list, sizeof(*list->list) * list->size);
+	if (!list->list) {
+		perror("Memory allocation error with realloc().");
+		return -1;
+	}
+	return 0;
 }
 
 void report_syntax_error(const char *message, p_context_s *context) {
