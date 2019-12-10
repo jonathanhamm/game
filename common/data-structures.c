@@ -63,6 +63,76 @@ int char_add_c(CharBuf *b, char c) {
 	return STATUS_OK;
 }
 
+int char_add_s(CharBuf *b, char *s) {
+	size_t buf_size = b->buf_size;
+	size_t olen = b->size;
+	size_t nlen = olen + strlen(s);
+	size_t insert = olen;
+	char *buffer = b->buffer;
+
+	if (olen == 0 || buffer[olen - 1] != '\0') {
+		nlen++;
+	}
+	else {
+		insert = olen - 1;
+	}
+	if (nlen >= buf_size) {
+		do {
+			buf_size *= 2;
+		} while (nlen >= buf_size);
+		buffer = realloc(buffer, buf_size);
+		if (!buffer)
+			return STATUS_OUT_OF_MEMORY;
+	}
+	strcpy(&buffer[insert], s);
+	b->size = nlen;
+	b->buf_size = buf_size;
+	b->buffer = buffer;
+	return STATUS_OK;
+}
+
+int char_add_i(CharBuf *b, int i) {
+	int result;
+	size_t osize = b->size;
+	size_t bsize = b->buf_size;
+	size_t limit = bsize - osize;
+	char *buffer = b->buffer;
+
+	result = snprintf(&b->buffer[osize], limit, "%d", i) + 1;
+	if (result > limit) {
+		do {
+			bsize *= 2;	
+			limit = bsize - osize;	
+		} while (result > limit);
+		buffer = realloc(buffer, bsize);
+		if (!buffer)
+			return STATUS_OUT_OF_MEMORY;
+		sprintf(&buffer[osize], "%d", i);
+	}
+	return STATUS_OK;
+}
+
+int char_add_d(CharBuf *b, double d) {
+	int result;
+	size_t osize = b->size;
+	size_t bsize = b->buf_size;
+	size_t limit = bsize - osize;
+	char *buffer = b->buffer;
+
+	result = snprintf(&b->buffer[osize], limit, "%f", d) + 1;
+	if (result > limit) {
+		do {
+			bsize *= 2;	
+			limit = bsize - osize;	
+		} while (result > limit);
+		buffer = realloc(buffer, bsize);
+		if (!buffer)
+			return STATUS_OUT_OF_MEMORY;
+		sprintf(&buffer[osize], "%f", d);
+	}
+	return STATUS_OK;
+}
+
 char char_popback_c(CharBuf *b) {
 	char *p = &b->buffer[b->size - 1];	
 	char c = *p;

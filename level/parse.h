@@ -19,8 +19,12 @@ enum p_nodetype_e {
 	PTYPE_SHADER,
 	PTYPE_TEXTURE,
 	PTYPE_PROGRAM,
+	PTYPE_MESH,
+	PTYPE_MODEL,
+	PTYPE_INSTANCE,
 	PTYPE_OBJECT,
 	PTYPE_ARRAY,
+	PTYPE_LEVEL,
 	/* Type Nodes */
 	PTYPE_SHADER_DEC,
 	PTYPE_TEXTURE_DEC,
@@ -35,6 +39,7 @@ enum p_nodetype_e {
 	PTYPE_GENERIC_DEC,
 	PTPYE_INT_DEC,
 	PTYPE_ARRAY_DEC,
+	PTYPE_LEVEL_DEC
 };
 
 struct p_context_s {
@@ -42,6 +47,7 @@ struct p_context_s {
 	StrMap symtable;
 	tnode_s *root;
 	tok_s *currtok;
+	CharBuf code;
 };
 
 struct tnode_list_s {
@@ -56,7 +62,7 @@ struct tnode_arraytype_val_s {
 
 struct tnode_s {
 	p_nodetype_e type;
-	unsigned lineno;
+	tok_s *tok;
 	union {
 		char *s;
 		int i;

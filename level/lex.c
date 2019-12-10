@@ -219,6 +219,8 @@ int tok_keyword(char *ptr) {
 		return TOK_MESH_DEC;
 	else if(!strcmp(ptr, "Instance"))
 		return TOK_INSTANCE_DEC;
+	else if(!strcmp(ptr, "Level"))
+		return TOK_LEVEL_DEC;
 	else if(!strcmp(ptr, "Float"))
 		return TOK_FLOAT_DEC;
 	else if(!strcmp(ptr, "Int"))

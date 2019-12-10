@@ -15,6 +15,7 @@ int main(int argc, char *argv[]) {
 			toklist_s tokens = lex(argv[i]);
 			if (tokens.head) {
 				context = parse(&tokens);
+				printf("code: \n\n%s\n", context.code.buffer);
 				//tree_walk(&context);
 			}
 		}
