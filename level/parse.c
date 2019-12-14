@@ -73,6 +73,7 @@ static void parse_next_tok(p_context_s *context);
 static bool typecheck_assignment(p_context_s *context, tnode_s *typenode, tnode_s *expression);
 static bool typecheck_basic_assignment(p_context_s *context, p_nodetype_e declared, p_nodetype_e expression);
 static bool typecheck_array_assignment(p_context_s *context, tnode_s *typenode, tnode_s *expression);
+static p_nodetype_e resolve_array_type(tnode_list_s list);
 static bool exec_negate(tnode_s *operand);
 static bool exec_sub(tnode_s *accum, tnode_s *operand);
 static bool exec_add(tnode_s *accum, tnode_s *operand);
@@ -80,7 +81,7 @@ static bool exec_mult(tnode_s *accum, tnode_s *operand);
 static bool exec_div(tnode_s *accum, tnode_s *operand);
 static tnode_s *exec_access_obj(tnode_s *obj, char *key);
 static tnode_s *exec_access_arr(tnode_s *arr, tnode_s *index);
-static tnode_s *sym_lookup(p_context_s *context, char *key);
+static symtable_node_s *sym_lookup(p_context_s *context, char *key);
 static char *concat_str_integer(char *str, int i);
 static char *concat_integer_str(int i, char *str);
 static char *concat_str_double(char *str, double d);
@@ -91,16 +92,16 @@ static tnode_s *tnode_create_str(tok_s *tok, char *s);
 static tnode_s *tnode_create_int(tok_s *tok, int i);
 static tnode_s *tnode_create_float(tok_s *tok, double f);
 static tnode_s *tnode_create_object(tok_s *tok, StrMap *obj);
-static tnode_s *tnode_create_array(tok_s *tok, tnode_list_s list);
+static tnode_s *tnode_create_array(tok_s *tok, tnode_list_s list, p_nodetype_e type);
 static tnode_s *tnode_create_basic_type(tok_s *tok, p_nodetype_e type);
 static tnode_s *tnode_create_array_type(tok_s *tok, tnode_arraytype_val_s atval);
 static void tnode_list_init(tnode_list_s *list);
 static int tnode_list_add(tnode_list_s *list, tnode_s *node);
 static void emit_code(char *code, p_context_s *context);
-static void emit_instance_batch(tnode_s *level, tnode_list_s instances, p_context_s *context);
+static void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *context);
 static bool emit_level(tnode_s *level, p_context_s *context);
-static bool emit_instances(tnode_s *level, p_context_s *context);
-static char *create_table_name(char *level_name);
+static bool emit_instances(tnode_s *level, char *levelid, p_context_s *context);
+static char *strip_quotes(char *level_name);
 static void report_syntax_error(const char *message, p_context_s *context);
 static void report_semantics_error(const char *message, p_context_s *context);
 
@@ -173,7 +174,6 @@ void parse_property(p_context_s *context, StrMap *map) {
 		if (context->currtok->type == TOK_COLON) {
 			parse_next_tok(context);
 			tnode_s *expression = parse_expression(context);
-			printf("inserting: %s -> %p\n", key, expression);
 			bob_str_map_insert(map, key, expression);
 		}
 		else {
@@ -288,7 +288,7 @@ tnode_s *parse_declaration(p_context_s *context) {
 					emit_level(symnode->node, context);				
 				}
 				else {
-					printf("typenode type: %d\n", typenode->type);
+					//printf("typenode type: %d\n", typenode->type);
 				}
 			}
 		}
@@ -380,7 +380,6 @@ tnode_s *parse_basic_type(p_context_s *context) {
 			type = PTYPE_GENERIC_DEC;
 			break;
 		case TOK_LEVEL_DEC:
-			printf("level declaration: %d\n", PTYPE_LEVEL_DEC);
 			type = PTYPE_LEVEL_DEC;
 			break;
 		default:
@@ -531,6 +530,7 @@ void parse_term_(p_context_s *context, tnode_s *root) {
 tnode_s *parse_factor(p_context_s *context) {
 	int i; 
 	double f;
+	symtable_node_s *symnode;
 	tnode_s *factor = NULL;
 	switch(context->currtok->type) {
 		case TOK_ADDOP: {
@@ -545,12 +545,15 @@ tnode_s *parse_factor(p_context_s *context) {
 			}
 			break;
 		case TOK_IDENTIFIER:
-			factor = sym_lookup(context, context->currtok->lexeme);
-			if (!factor) {
+			symnode = sym_lookup(context, context->currtok->lexeme);
+			if (!symnode) {
 				//TODO: handle error where factor is not present
 				report_semantics_error("Use of undeclared identifier", context);
 			}
-			printf("got factor: %p\n", factor);
+			if (!symnode->evalflag) {
+				report_semantics_error("Use of unitialized identifier", context);
+			}
+			factor = symnode->node;
 			parse_next_tok(context);
 			parse_idsuffix(context, &factor);
 			break;
@@ -737,7 +740,8 @@ tnode_s *parse_array(p_context_s *context) {
 		tok_s *array = context->currtok;
 		parse_next_tok(context);
 		tnode_list_s list = parse_expression_list(context);
-		result = tnode_create_array(array, list);
+		p_nodetype_e type = resolve_array_type(list);
+		result = tnode_create_array(array, list, type);
 		if(context->currtok->type == TOK_RBRACK) {
 			parse_next_tok(context);
 		}
@@ -817,6 +821,116 @@ bool typecheck_array_assignment(p_context_s *context, tnode_s *typenode, tnode_s
 	if (!result)
 		return false;
 	return result && typecheck_basic_assignment(context, typenode->type, expression->type);
+}
+
+/* 
+ * function:	resolve_array_type
+ * -------------------------------------------------- 
+ */
+p_nodetype_e resolve_array_type(tnode_list_s list) {
+	int i;
+
+	if (list.size == 0)
+		return PTYPE_ANY;
+
+	p_nodetype_e type = list.list[0]->type; 
+	if (type == PTYPE_ANY)
+		return PTYPE_ANY;
+
+	for (i = 1; i < list.size; i++) {
+		p_nodetype_e type_i = list.list[i]->type;
+		switch (type) {
+			case PTYPE_INT:
+				if (type_i != PTYPE_INT)
+					return PTYPE_ANY;
+				break;
+			case PTYPE_FLOAT:
+				if (type_i != PTYPE_FLOAT && type_i != PTYPE_INT)
+					return PTYPE_ANY;
+				break;
+			case PTYPE_STRING:
+				if (type_i != PTYPE_STRING)
+					return PTYPE_ANY;
+				break;
+			case PTYPE_SHADER:
+				if (type_i != PTYPE_SHADER) {
+					if (type_i == PTYPE_OBJECT)
+						type = PTYPE_OBJECT;
+					else
+						return PTYPE_ANY;
+				}
+				break;
+			case PTYPE_TEXTURE:
+				if (type_i != PTYPE_TEXTURE) {
+					if (type_i == PTYPE_OBJECT)
+						type = PTYPE_OBJECT;
+					else
+						return PTYPE_ANY;
+				}
+				break;
+			case PTYPE_PROGRAM:
+				if (type_i != PTYPE_PROGRAM) {
+					if (type_i == PTYPE_OBJECT)
+						type = PTYPE_OBJECT;
+					else
+						return PTYPE_ANY;
+				}
+				break;
+			case PTYPE_MESH:
+				if (type_i != PTYPE_MESH) {
+					if (type_i == PTYPE_OBJECT)
+						type = PTYPE_OBJECT;
+					else
+						return PTYPE_ANY;
+				}
+				break;
+			case PTYPE_MODEL:
+				if (type_i != PTYPE_MODEL) {
+					if (type_i == PTYPE_OBJECT)
+						type = PTYPE_OBJECT;
+					else
+						return PTYPE_ANY;
+				}
+				break;
+			case PTYPE_INSTANCE:
+				if (type_i != PTYPE_INSTANCE) {
+					if (type_i == PTYPE_OBJECT)
+						type = PTYPE_OBJECT;
+					else
+						return PTYPE_ANY;
+				}
+			case PTYPE_OBJECT:
+				switch (type_i) {
+					case PTYPE_SHADER:
+					case PTYPE_TEXTURE:
+					case PTYPE_PROGRAM:
+					case PTYPE_MESH:
+					case PTYPE_MODEL:
+					case PTYPE_INSTANCE:
+					case PTYPE_OBJECT:
+					case PTYPE_LEVEL:
+						break;
+					default:
+						return PTYPE_ANY;
+				}
+				break;
+			case PTYPE_ARRAY:
+				if (type_i != PTYPE_ARRAY)
+					return PTYPE_ANY;
+				break;
+			case PTYPE_LEVEL:
+				if (type_i != PTYPE_LEVEL) {
+					if (type_i == PTYPE_OBJECT)
+						type = PTYPE_OBJECT;
+					else
+						return PTYPE_ANY;
+				}
+				break;
+			default:
+				return PTYPE_ANY;
+		}
+	}
+	return type;
 }
 
 /* 
@@ -1062,7 +1176,7 @@ tnode_s *exec_access_arr(tnode_s *arr, tnode_s *index) {
  * function:	sym_lookup
  * -------------------------------------------------- 
  */
-tnode_s *sym_lookup(p_context_s *context, char *key) {
+symtable_node_s *sym_lookup(p_context_s *context, char *key) {
 	return bob_str_map_get(&context->symtable, key);	
 }
 
@@ -1244,14 +1358,15 @@ tnode_s *tnode_create_object(tok_s *tok, StrMap *obj) {
  * function:	tnode_create_array
  * -------------------------------------------------- 
  */
-tnode_s *tnode_create_array(tok_s *tok, tnode_list_s list) {
+tnode_s *tnode_create_array(tok_s *tok, tnode_list_s list, p_nodetype_e type) {
 	tnode_s *t = malloc(sizeof *t);	
 	if (!t) {
 		return NULL;
 	}
 	t->type = PTYPE_ARRAY;
 	t->tok = tok;
-	t->val.list = list;
+	t->val.atval.type = type;
+	t->val.atval.arr = list;
 	return t;
 }
 
@@ -1301,6 +1416,7 @@ int tnode_list_add(tnode_list_s *list, tnode_s *node) {
 		perror("Memory allocation error with realloc().");
 		return -1;
 	}
+	list->list[list->size - 1] = node;
 	return 0;
 }
 
@@ -1308,26 +1424,27 @@ void emit_code(char *code, p_context_s *context) {
 	char_add_s(&context->code, code);
 }
 
-void emit_instance_batch(tnode_s *level, tnode_list_s instances, p_context_s *context) {
+void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *context) {
 	int i; 
 	tnode_s *instance;
 	StrMap *obj;
 
-	emit_code("INSERT INTO instances(modelID, levelID, vx, vy, vz, mass) VALUES\n", context);
+	emit_code(" INSERT INTO instances(modelID, levelID, vx, vy, vz, mass) VALUES\n", context);
 	for(i = 0; i < instances.size; i++) {
 		obj = instances.list[i]->val.obj;
-		tnode_s *model_name = bob_str_map_get(obj, "name");
-		tnode_s *vx = bob_str_map_get(obj, "x");
-		tnode_s *vy = bob_str_map_get(obj, "y");
-		tnode_s *vz = bob_str_map_get(obj, "z");
-		tnode_s *mass = bob_str_map_get(obj, "mass");
+		tnode_s *model = bob_str_map_get(obj, M_KEY("model"));
+		tnode_s *vx = bob_str_map_get(obj, M_KEY("x"));
+		tnode_s *vy = bob_str_map_get(obj, M_KEY("y"));
+		tnode_s *vz = bob_str_map_get(obj, M_KEY("z"));
+		tnode_s *mass = bob_str_map_get(obj, M_KEY("mass"));
 		
 		emit_code("\t(", context);
-		if (model_name->type == PTYPE_STRING) {
-			emit_code(model_name->val.s, context);	
+		if (model->type == PTYPE_STRING) {
+			emit_code(model->val.s, context);	
 			emit_code(", ", context);	
 		}
 		else {
+			printf("invalid model type: %d\n", model->type);
 			//error
 		}
 
@@ -1353,6 +1470,7 @@ void emit_instance_batch(tnode_s *level, tnode_list_s instances, p_context_s *co
 		else {
 			//error
 		}
+
 		if (i == instances.size - 1) {
 			emit_code("),\n", context);	
 		}
@@ -1364,59 +1482,60 @@ void emit_instance_batch(tnode_s *level, tnode_list_s instances, p_context_s *co
 
 bool emit_level(tnode_s *level, p_context_s *context) {
 	bool result;
-	symtable_node_s *snode = bob_str_map_get(level->val.obj, M_KEY("name"));
-	if (!snode) {
+	tnode_s *name_node = bob_str_map_get(level->val.obj, M_KEY("name"));
+	if (!name_node) {
 		report_semantics_error("Level missing required 'name' property", context);
 		return false;
 	}
-	tnode_s *name_node = snode->node;
-	if (!name_node) {
-		report_semantics_error("Level uninitialized", context);
-		return false;
-	}
 	char *raw_name = name_node->val.s;
-	char *table_name = create_table_name(raw_name);
+	char *table_name = strip_quotes(raw_name);
 
-	emit_code("----- GENERATING LEVEL: ", context);
+	emit_code("/*********************************************************************************\n", context);
+	emit_code("* GENERATING LEVEL: ", context);
 	emit_code(raw_name, context);
-	emit_code("-----\n", context);
-	emit_code("INSERT INTO level(name) VALUES(", context);
+	emit_code("\n", context);
+	emit_code("*********************************************************************************/\n", context);
+	emit_code(" INSERT INTO level(name) VALUES(", context);
 	emit_code(raw_name, context);
 	emit_code(");\n", context);
-	emit_code("CREATE TEMP TABLE ", context);
+	emit_code(" CREATE TEMP TABLE ", context);
 	emit_code(table_name, context);
 	emit_code("(id INTEGER PRIMARY KEY);\n", context);
-	emit_code("INSERT INTO ", context);
+	emit_code(" INSERT INTO ", context);
 	emit_code(table_name, context);
 	emit_code("(id) VALUES (last_insert_rowid());\n", context);
-	emit_instances(level, context);
-	result = emit_instances(level, context);
-	emit_code("--------------------------------------------------\n\n", context); 
+	emit_code("----------------------------------------------------------------------------------\n", context); 
+	result = emit_instances(level, table_name, context);
+	emit_code("/********************************************************************************/", context);
 	free(table_name);
 	return result;
 }
 
-bool emit_instances(tnode_s *level, p_context_s *context) {
-	symtable_node_s *snode = bob_str_map_get(level->val.obj, M_KEY("instances"));
-	if (!snode) {
-		report_semantics_error("Level missing required 'instances' property.");
-		return false;
-	}
-	tnode_s *instances = snode->node;
+bool emit_instances(tnode_s *level, char *levelid, p_context_s *context) {
+	tnode_s *instances = bob_str_map_get(level->val.obj, M_KEY("instances"));
 	if (!instances) {
-		report_semantics_error("Instances are null");
+		report_semantics_error("Instances are null", context);
 		return false;
 	}
+	tnode_arraytype_val_s atval = instances->val.atval;
+	printf("type: %d\n", atval.type);
+	if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE) {
+		emit_instance_batch(levelid, atval.arr, context);
+	}
+	else {
+		report_semantics_error("Instances must be an array of objects or instance types", context);
+	}
+	
 	return true;
 }
 
-char *create_table_name(char *level_name) {
+char *strip_quotes(char *level_name) {
 	int i;
 	size_t nlen = strlen(level_name) - 1;
 	char *nname = malloc(nlen);
 
 	if (!nname) {
-		perror("Memory allocation error in create_table_name()");
+		perror("Memory allocation error in strip_quotes()");
 		return NULL;
 	}
 	for (i = 0; i < nlen - 1; i++) {

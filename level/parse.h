@@ -25,6 +25,7 @@ enum p_nodetype_e {
 	PTYPE_OBJECT,
 	PTYPE_ARRAY,
 	PTYPE_LEVEL,
+	PTYPE_ANY,
 	/* Type Nodes */
 	PTYPE_SHADER_DEC,
 	PTYPE_TEXTURE_DEC,

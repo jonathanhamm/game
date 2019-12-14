@@ -219,6 +219,7 @@ void *bob_str_map_get(StrMap *m, char *key) {
 		while (entry) {
 			if (!strcmp(entry->key, key))
 				return entry->val;
+			entry = entry->next;
 		}
 	}
 	return NULL;
