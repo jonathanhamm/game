@@ -63,7 +63,7 @@ int char_add_c(CharBuf *b, char c) {
 	return STATUS_OK;
 }
 
-int char_add_s(CharBuf *b, char *s) {
+int char_add_s(CharBuf *b, const char *s) {
 	size_t buf_size = b->buf_size;
 	size_t olen = b->size;
 	size_t nlen = olen + strlen(s);
@@ -188,7 +188,7 @@ void bob_str_map_init(StrMap *m) {
 	}
 }
 
-int bob_str_map_insert(StrMap *m, char *key, void *val) {
+int bob_str_map_insert(StrMap *m, const char *key, void *val) {
 	unsigned index = pjw_hash(key) % MAP_TABLE_SIZE;
 	StrMapEntry **pcurr = &m->table[index], *curr = *pcurr;
 	StrMapEntry *n = malloc(sizeof *n);
@@ -211,7 +211,21 @@ int bob_str_map_insert(StrMap *m, char *key, void *val) {
 	return STATUS_OK;
 }
 
-void *bob_str_map_get(StrMap *m, char *key) {
+int bob_str_map_update(StrMap *m, const char *key, void *val) {
+	unsigned index = pjw_hash(key);
+	StrMapEntry *entry = m->table[index];
+
+  while (entry) {
+    if (!strcmp(entry->key, key)) {
+      entry->val = val;
+      return STATUS_OK;
+    }
+    entry = entry->next;
+  }
+	return -1;
+}
+
+void *bob_str_map_get(StrMap *m, const char *key) {
 	unsigned index = pjw_hash(key);
 	StrMapEntry *entry = m->table[index];
 
@@ -248,5 +262,19 @@ unsigned pjw_hash(const char *key) {
 		}
 	}
 	return (unsigned)(h % MAP_TABLE_SIZE);
+}
+
+CharBuf pad_quotes(const char *src) {
+  CharBuf cbuf;
+
+  char_buf_init(&cbuf);
+  while (*src) {
+    if (*src == '"')
+      char_add_c(&cbuf, '"');
+    char_add_c(&cbuf, *src);
+    src++;
+  }
+  char_add_c(&cbuf, '\0');
+  return cbuf;
 }
 

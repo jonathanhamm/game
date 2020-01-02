@@ -25,7 +25,7 @@ struct PointerVector {
 };
 
 struct StrMapEntry {
-	char *key;
+	const char *key;
 	void *val;
 	StrMapEntry *next;
 };
@@ -38,7 +38,7 @@ struct StrMap {
 extern int char_buf_init(CharBuf *b);
 extern int char_buf_from_file(CharBuf *b, const char *file_path);
 extern int char_add_c(CharBuf *b, char c);
-extern int char_add_s(CharBuf *b, char *s);
+extern int char_add_s(CharBuf *b, const char *s);
 extern int char_add_i(CharBuf *b, int i);
 extern int char_add_d(CharBuf *b, double d);
 extern char char_popback_c(CharBuf *b);
@@ -49,9 +49,12 @@ extern int pointer_vector_add(PointerVector *pv, void *p);
 extern void pointer_vector_free(PointerVector *pv);
 
 extern void bob_str_map_init(StrMap *m);
-extern int bob_str_map_insert(StrMap *m, char *key, void *val);
-extern void *bob_str_map_get(StrMap *m, char *key);
+extern int bob_str_map_insert(StrMap *m, const char *key, void *val);
+extern int bob_str_map_update(StrMap *m, const char *key, void *val);
+extern void *bob_str_map_get(StrMap *m, const char *key);
 extern void *bob_str_map_free(StrMap *m);
+
+extern CharBuf pad_quotes(const char *src);
 
 #endif
 

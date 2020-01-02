@@ -9,14 +9,60 @@
 		"src": "hello
 			world"
 	}
+  Mesh mesh1 := {
+    "vertices": [ 1.0, 23, 234]
+  }
+  Program program1 := {
+    "vertex": {
+      "src": "test1" 
+    },
+    "tessellation": {
+      "src": "test1" 
+    },
+    "evaluation": {
+      "src": "test1" 
+    },
+    "geometry": {
+      "src": "test1" 
+    },
+    "fragment": {
+      "src": "test1" 
+    },
+    "compute": {
+      "src": "test1" 
+    }
+  }
 	Model m1 := {
-		"a": "b"
+		"mesh": mesh1,
+    "program": program1,
+    "texture": {
+      "path": "test"
+    }
 	}
 
 	Level turd := {
 		"name": derp,
 		"instances": [
-			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": "m1" }
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1.0, "mass": 1.0, "model": m1 }
 		]
 	}
 

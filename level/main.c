@@ -1,7 +1,6 @@
 #include "lex.h"
 #include "parse.h"
 //#include "tree.h"
-#include <stdio.h>
 
 int main(int argc, char *argv[]) {
 	int i;	
@@ -15,7 +14,7 @@ int main(int argc, char *argv[]) {
 			toklist_s tokens = lex(argv[i]);
 			if (tokens.head) {
 				context = parse(&tokens);
-				printf("code: \n\n%s\n", context.code.buffer);
+        gen_code(&context, stdout);
 				//tree_walk(&context);
 			}
 		}

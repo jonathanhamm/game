@@ -4,6 +4,7 @@
 #include "lex.h"
 #include "../common/data-structures.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef enum p_nodetype_e p_nodetype_e;
 typedef struct p_context_s p_context_s;
@@ -45,10 +46,17 @@ enum p_nodetype_e {
 
 struct p_context_s {
 	int parse_errors;
+  unsigned labelcount;
 	StrMap symtable;
 	tnode_s *root;
 	tok_s *currtok;
-	CharBuf code;
+  CharBuf meshcode;
+  CharBuf shadercode;
+  CharBuf programcode;
+  CharBuf texturecode;
+  CharBuf modelcode;
+	CharBuf levelcode;
+  CharBuf instancecode;
 };
 
 struct tnode_list_s {
@@ -80,6 +88,7 @@ struct symtable_node_s {
 };
 
 extern p_context_s parse(toklist_s *list);
+extern void gen_code(p_context_s *context, FILE *dest);
 extern void print_parse_tree(p_context_s *context);
 extern void print_parse_subtree(tnode_s *root);
 

@@ -1,9 +1,12 @@
 #include "parse.h"
+#include "../common/constants.h"
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
 
 #define M_KEY(k) ("\""k"\"")
+#define OBJ_ID_KEY "__name__"
+#define OBJ_ISGEN_KEY "__isgen__"
 
 /*
    typedef enum p_type_e p_type_e;
@@ -45,6 +48,9 @@
  - String + String -> String
  - Num + String -> String [commutative]
  */
+
+static const bool isgen_false = false;
+static const bool isgen_true = true;
 
 static tnode_s *parse_header(p_context_s *context);
 static StrMap *parse_property_list(p_context_s *context);
@@ -95,12 +101,20 @@ static tnode_s *tnode_create_object(tok_s *tok, StrMap *obj);
 static tnode_s *tnode_create_array(tok_s *tok, tnode_list_s list, p_nodetype_e type);
 static tnode_s *tnode_create_basic_type(tok_s *tok, p_nodetype_e type);
 static tnode_s *tnode_create_array_type(tok_s *tok, tnode_arraytype_val_s atval);
+static char *make_label(p_context_s *context, char *prefix);
 static void tnode_list_init(tnode_list_s *list);
 static int tnode_list_add(tnode_list_s *list, tnode_s *node);
-static void emit_code(char *code, p_context_s *context);
+static void emit_code(const char *code, CharBuf *segment);
 static void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *context);
+static bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context);
 static bool emit_level(tnode_s *level, p_context_s *context);
 static bool emit_instances(tnode_s *level, char *levelid, p_context_s *context);
+static bool emit_model(tnode_s *model, p_context_s *context);
+static bool emit_mesh(tnode_s *mesh, p_context_s *context);
+static bool emit_program(tnode_s *program, p_context_s *context);
+static bool emit_shader(tnode_s *shader, bob_shader_e type, p_context_s *context);
+static bool emit_texture(tnode_s *texture, p_context_s *context);
+static bool check_shader(tnode_s *program, p_context_s *context, const char *shader, const char *programname, bob_shader_e type);
 static char *strip_quotes(char *level_name);
 static void report_syntax_error(const char *message, p_context_s *context);
 static void report_semantics_error(const char *message, p_context_s *context);
@@ -116,7 +130,14 @@ p_context_s parse(toklist_s *list) {
   context.currtok = list->head;
   context.parse_errors = 0;
   context.root = NULL;
-  char_buf_init(&context.code);
+  context.labelcount = 0;
+  char_buf_init(&context.meshcode);
+  char_buf_init(&context.shadercode);
+  char_buf_init(&context.programcode);
+  char_buf_init(&context.texturecode);
+  char_buf_init(&context.modelcode);
+  char_buf_init(&context.levelcode);
+  char_buf_init(&context.instancecode);
   bob_str_map_init(&context.symtable);
   header = parse_header(&context);
   body = parse_body(&context);
@@ -409,13 +430,13 @@ void parse_opt_array(p_context_s *context, tnode_list_s *arr) {
       case TOK_LPAREN:
       case TOK_LBRACE:
       case TOK_LBRACK: {
-                         tnode_s *expression = parse_expression(context);
-                         tnode_list_add(arr, expression);
-                       }
-                       break;
+        tnode_s *expression = parse_expression(context);
+        tnode_list_add(arr, expression);
+        break;
+      }
       default:
-                       tnode_list_add(arr, NULL);
-                       break;
+        tnode_list_add(arr, NULL);
+        break;
     }
     if(context->currtok->type == TOK_RBRACK) {
       parse_next_tok(context);
@@ -534,66 +555,66 @@ tnode_s *parse_factor(p_context_s *context) {
   tnode_s *factor = NULL;
   switch(context->currtok->type) {
     case TOK_ADDOP: {
-                      tok_s *addop = context->currtok;
-                      parse_next_tok(context);
-                      tnode_s *expression = parse_expression(context);
-                      if(!strcmp(addop->lexeme, "-")) {
-                        //TODO: handle return value
-                        exec_negate(expression);
-                      }
-                      parse_idsuffix(context, &factor);
-                    }
-                    break;
+        tok_s *addop = context->currtok;
+        parse_next_tok(context);
+        tnode_s *expression = parse_expression(context);
+        if(!strcmp(addop->lexeme, "-")) {
+          //TODO: handle return value
+          exec_negate(expression);
+        }
+        parse_idsuffix(context, &factor);
+      }
+      break;
     case TOK_IDENTIFIER:
-                    symnode = sym_lookup(context, context->currtok->lexeme);
-                    if (!symnode) {
-                      //TODO: handle error where factor is not present
-                      report_semantics_error("Use of undeclared identifier", context);
-                    }
-                    if (!symnode->evalflag) {
-                      report_semantics_error("Use of unitialized identifier", context);
-                    }
-                    factor = symnode->node;
-                    parse_next_tok(context);
-                    parse_idsuffix(context, &factor);
-                    break;
+      symnode = sym_lookup(context, context->currtok->lexeme);
+      if (!symnode) {
+        //TODO: handle error where factor is not present
+        report_semantics_error("Use of undeclared identifier", context);
+      }
+      if (!symnode->evalflag) {
+        report_semantics_error("Use of unitialized identifier", context);
+      }
+      factor = symnode->node;
+      parse_next_tok(context);
+      parse_idsuffix(context, &factor);
+      break;
     case TOK_INTEGER:
-                    i = atoi(context->currtok->lexeme);
-                    factor = tnode_create_int(context->currtok, i);
-                    parse_next_tok(context);
-                    break;
+      i = atoi(context->currtok->lexeme);
+      factor = tnode_create_int(context->currtok, i);
+      parse_next_tok(context);
+      break;
     case TOK_FLOAT:
-                    f = atof(context->currtok->lexeme);
-                    factor = tnode_create_float(context->currtok, f);
-                    parse_next_tok(context);
-                    break;
+      f = atof(context->currtok->lexeme);
+      factor = tnode_create_float(context->currtok, f);
+      parse_next_tok(context);
+      break;
     case TOK_STRING:
-                    factor = tnode_create_str(context->currtok, context->currtok->lexeme);
-                    parse_next_tok(context);
-                    parse_idsuffix(context, &factor);
-                    break;
+      factor = tnode_create_str(context->currtok, context->currtok->lexeme);
+      parse_next_tok(context);
+      parse_idsuffix(context, &factor);
+      break;
     case TOK_LPAREN: {
-                       parse_next_tok(context);
-                       factor = parse_expression(context);
-                       if(context->currtok->type != TOK_RPAREN) {
-                         report_syntax_error("Expected ')'", context);
-                       }
-                       parse_next_tok(context);
-                       parse_idsuffix(context, &factor);
-                     }
-                     break;
+         parse_next_tok(context);
+         factor = parse_expression(context);
+         if(context->currtok->type != TOK_RPAREN) {
+           report_syntax_error("Expected ')'", context);
+         }
+         parse_next_tok(context);
+         parse_idsuffix(context, &factor);
+       }
+       break;
     case TOK_LBRACE:
-                     factor = parse_object(context);
-                     parse_idsuffix(context, &factor);
-                     break;
+       factor = parse_object(context);
+       parse_idsuffix(context, &factor);
+       break;
     case TOK_LBRACK:
-                     factor = parse_array(context);
-                     parse_idsuffix(context, &factor);
-                     break;
+       factor = parse_array(context);
+       parse_idsuffix(context, &factor);
+       break;
     default:
-                     report_syntax_error("Expected identifier, number, string, '+', '-', '(', '{', or '['", context);
-                     parse_next_tok(context);
-                     break;
+       report_syntax_error("Expected identifier, number, string, '+', '-', '(', '{', or '['", context);
+       parse_next_tok(context);
+       break;
   }
   return factor;
 }
@@ -620,41 +641,41 @@ void parse_idsuffix(p_context_s *context, tnode_s **pfactor) {
       }
       break;
     case TOK_LPAREN: {
-                       tnode_list_s expression_list;
-                       op = context->currtok;
-                       parse_next_tok(context);
-                       expression_list = parse_expression_list(context);
-                       if(context->currtok->type == TOK_RPAREN) {
-                         // TODO: exec function
-                         parse_next_tok(context);
-                         parse_idsuffix(context, pfactor);
-                       }
-                       else {
-                         report_syntax_error("Expected ')'", context);
-                         parse_next_tok(context);
-                       }
-                     }
-                     break;
+       tnode_list_s expression_list;
+       op = context->currtok;
+       parse_next_tok(context);
+       expression_list = parse_expression_list(context);
+       if(context->currtok->type == TOK_RPAREN) {
+         // TODO: exec function
+         parse_next_tok(context);
+         parse_idsuffix(context, pfactor);
+       }
+       else {
+         report_syntax_error("Expected ')'", context);
+         parse_next_tok(context);
+       }
+     }
+     break;
     case TOK_LBRACK: {
-                       tnode_s *expression;
-                       op = context->currtok;
-                       parse_next_tok(context);
-                       expression = parse_expression(context);
-                       if(context->currtok->type == TOK_RBRACK) {
-                         parse_next_tok(context);
-                         if (*pfactor) {
-                           *pfactor = exec_access_arr(*pfactor, expression);
-                         }
-                         parse_idsuffix(context, pfactor);
-                       }
-                       else {
-                         report_syntax_error("Expected ']'", context);
-                         parse_next_tok(context);
-                       }
-                     }
-                     break;
+      tnode_s *expression;
+      op = context->currtok;
+      parse_next_tok(context);
+      expression = parse_expression(context);
+      if(context->currtok->type == TOK_RBRACK) {
+        parse_next_tok(context);
+        if (*pfactor) {
+          *pfactor = exec_access_arr(*pfactor, expression);
+        }
+        parse_idsuffix(context, pfactor);
+      }
+      else {
+        report_syntax_error("Expected ']'", context);
+        parse_next_tok(context);
+      }
+    }
+    break;
     default:
-                     break;
+      break;
   }
 }
 
@@ -715,6 +736,9 @@ tnode_s *parse_object(p_context_s *context) {
     parse_next_tok(context);
     StrMap *dict = parse_property_list(context);
     result = tnode_create_object(object, dict);
+    char *label = make_label(context, "obj");
+    bob_str_map_insert(dict, OBJ_ID_KEY, label);
+    bob_str_map_insert(dict, OBJ_ISGEN_KEY, (void *)&isgen_false);
     if(context->currtok->type == TOK_RBRACE) {
       parse_next_tok(context);
     }
@@ -842,7 +866,10 @@ p_nodetype_e resolve_array_type(tnode_list_s list) {
     switch (type) {
       case PTYPE_INT:
         if (type_i != PTYPE_INT)
-          return PTYPE_ANY;
+          if (type_i == PTYPE_FLOAT)
+            return PTYPE_FLOAT;
+          else
+            return PTYPE_ANY;
         break;
       case PTYPE_FLOAT:
         if (type_i != PTYPE_FLOAT && type_i != PTYPE_INT)
@@ -1397,6 +1424,26 @@ tnode_s *tnode_create_array_type(tok_s *tok, tnode_arraytype_val_s atval) {
 }
 
 /* 
+ * function:	make_label
+ * -------------------------------------------------- 
+ */
+char *make_label(p_context_s *context, char *prefix) {
+  size_t len = strlen(prefix) + 2;
+  char *buffer= malloc(len);
+  if (!buffer) {
+    perror("memory allocation error in make_label()");
+    return NULL;
+  }
+  context->labelcount++;
+  size_t reallen = snprintf(buffer, len, "%s%u", prefix, context->labelcount);
+  if (reallen + 1 > len) {
+    buffer = realloc(buffer, reallen + 1);
+    sprintf(buffer, "%s%u", prefix, context->labelcount);
+  }
+  return buffer;
+}
+
+/* 
  * function:	tnode_list_init
  * -------------------------------------------------- 
  */
@@ -1420,64 +1467,76 @@ int tnode_list_add(tnode_list_s *list, tnode_s *node) {
   return 0;
 }
 
-void emit_code(char *code, p_context_s *context) {
-  char_add_s(&context->code, code);
+void emit_code(const char *code, CharBuf *segment) {
+  char_add_s(segment, code);
 }
 
 void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *context) {
   int i; 
-  tnode_s *instance;
-  StrMap *obj;
+  const bool *isgen;
 
-  emit_code(" INSERT INTO instances(modelID, levelID, vx, vy, vz, mass) VALUES\n", context);
-  for(i = 0; i < instances.size; i++) {
-    obj = instances.list[i]->val.obj;
-    tnode_s *model = bob_str_map_get(obj, M_KEY("model"));
-    tnode_s *vx = bob_str_map_get(obj, M_KEY("x"));
-    tnode_s *vy = bob_str_map_get(obj, M_KEY("y"));
-    tnode_s *vz = bob_str_map_get(obj, M_KEY("z"));
-    tnode_s *mass = bob_str_map_get(obj, M_KEY("mass"));
-
-    emit_code("\t(", context);
-    if (model->type == PTYPE_STRING) {
-      emit_code(model->val.s, context);	
-      emit_code(", ", context);	
-    }
-    else {
-      printf("invalid model type: %d\n", model->type);
-      //error
-    }
-
-    if (vx->type == PTYPE_FLOAT || vx->type == PTYPE_INT) {
-      emit_code(vx->tok->lexeme, context);	
-      emit_code(", ", context);	
-    }
-    else {
-      //error
-    }
-
-    if (vy->type == PTYPE_FLOAT || vy->type == PTYPE_INT) {
-      emit_code(vy->tok->lexeme, context);	
-      emit_code(", ", context);	
-    }
-    else {
-      //error
-    }
-
-    if (vz->type == PTYPE_FLOAT || vz->type == PTYPE_INT) {
-      emit_code(vz->tok->lexeme, context);	
-    }
-    else {
-      //error
-    }
-
-    if (i == instances.size - 1) {
-      emit_code("),\n", context);	
-    }
-    else {
-      emit_code(");\n", context);	
-    }
+  emit_code(" INSERT INTO instance(modelID, levelID, vx, vy, vz, mass) VALUES\n", &context->instancecode);
+  for(i = 0; i < instances.size - 1; i++) {
+    emit_code(" \t", &context->instancecode);
+    emit_instance(levelid, instances.list[i], context);
+    emit_code(",\n", &context->instancecode);
   }
+  emit_code(" \t", &context->instancecode);
+  emit_instance(levelid, instances.list[i], context);
+  emit_code("\n", &context->instancecode);
+}
+
+bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
+  bool *isgen;
+  StrMap *obj = instance->val.obj;
+  tnode_s *model = bob_str_map_get(obj, M_KEY("model"));
+  if (!model) {
+    report_semantics_error("Instance missing required 'model' property", context);
+    return false;
+  }
+  tnode_s *vx = bob_str_map_get(obj, M_KEY("x"));
+  if (!vx) {
+    report_semantics_error("Instance missing required 'x' property", context);
+    return false;
+  }
+  tnode_s *vy = bob_str_map_get(obj, M_KEY("y"));
+  if (!vy) {
+    report_semantics_error("Instance missing required 'y' property", context);
+    return false;
+  }
+  tnode_s *vz = bob_str_map_get(obj, M_KEY("z"));
+  if (!vz) {
+    report_semantics_error("Instance missing required 'vz' property", context);
+    return false;
+  }
+  tnode_s *mass = bob_str_map_get(obj, M_KEY("mass"));
+  if (!mass) {
+    report_semantics_error("Instance missing required 'mass' property", context);
+    return false;
+  }
+  char *model_name;
+  isgen = bob_str_map_get(model->val.obj, OBJ_ISGEN_KEY);
+  if (!*isgen) {
+    emit_model(model, context);
+  }
+  model_name = bob_str_map_get(model->val.obj, OBJ_ID_KEY);
+  if (!model_name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+  emit_code("((SELECT id FROM ", &context->instancecode);
+  emit_code(model_name, &context->instancecode);
+  emit_code("),(SELECT id FROM ", &context->instancecode);
+  emit_code(levelid, &context->instancecode);
+  emit_code("),", &context->instancecode);
+  emit_code(vx->tok->lexeme, &context->instancecode);
+  emit_code(",", &context->instancecode);
+  emit_code(vy->tok->lexeme, &context->instancecode);
+  emit_code(",", &context->instancecode);
+  emit_code(vz->tok->lexeme, &context->instancecode);
+  emit_code(",", &context->instancecode);
+  emit_code(mass->tok->lexeme, &context->instancecode);
+  emit_code(")", &context->instancecode);
 }
 
 bool emit_level(tnode_s *level, p_context_s *context) {
@@ -1490,25 +1549,288 @@ bool emit_level(tnode_s *level, p_context_s *context) {
   char *raw_name = name_node->val.s;
   char *table_name = strip_quotes(raw_name);
 
-  emit_code("/*********************************************************************************\n", context);
-  emit_code("* GENERATING LEVEL: ", context);
-  emit_code(raw_name, context);
-  emit_code("\n", context);
-  emit_code("*********************************************************************************/\n", context);
-  emit_code(" INSERT INTO level(name) VALUES(", context);
-  emit_code(raw_name, context);
-  emit_code(");\n", context);
-  emit_code(" CREATE TEMP TABLE ", context);
-  emit_code(table_name, context);
-  emit_code("(id INTEGER PRIMARY KEY);\n", context);
-  emit_code(" INSERT INTO ", context);
-  emit_code(table_name, context);
-  emit_code("(id) VALUES (last_insert_rowid());\n", context);
-  emit_code("----------------------------------------------------------------------------------\n", context); 
+  emit_code("--------------------------------------------------------------------------------\n", &context->levelcode);
+  emit_code("-- GENERATING LEVEL: ", &context->levelcode);
+  emit_code(raw_name, &context->levelcode);
+  emit_code("\n", &context->levelcode);
+  emit_code("--------------------------------------------------------------------------------\n", &context->levelcode);
+  emit_code(" INSERT INTO level(name) VALUES(", &context->levelcode);
+  emit_code(raw_name, &context->levelcode);
+  emit_code(");\n", &context->levelcode);
+  emit_code(" CREATE TEMP TABLE ", &context->levelcode);
+  emit_code(table_name, &context->levelcode);
+  emit_code("(id INTEGER PRIMARY KEY);\n", &context->levelcode);
+  emit_code(" INSERT INTO ", &context->levelcode);
+  emit_code(table_name, &context->levelcode);
+  emit_code("(id) VALUES (last_insert_rowid());\n", &context->levelcode);
+  emit_code("----------------------------------------------------------------------------------\n", &context->levelcode); 
   result = emit_instances(level, table_name, context);
-  emit_code("/********************************************************************************/", context);
   free(table_name);
   return result;
+}
+
+bool emit_model(tnode_s *model, p_context_s *context) {
+  const bool *isgen;
+  char *name = bob_str_map_get(model->val.obj, OBJ_ID_KEY);
+  if (!name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+
+  char *mesh_name;
+  tnode_s *mesh = bob_str_map_get(model->val.obj, M_KEY("mesh"));
+  if (!mesh) {
+    report_semantics_error("Missing: Expected 'mesh' property in model object.", context);
+    return false;
+  }
+  isgen = bob_str_map_get(mesh->val.obj, OBJ_ISGEN_KEY);
+  if (!*isgen) {
+    emit_mesh(mesh, context);
+  }
+  mesh_name = bob_str_map_get(mesh->val.obj, OBJ_ID_KEY);
+  if (!mesh_name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+
+  char *program_name;
+  tnode_s *program = bob_str_map_get(model->val.obj, M_KEY("program"));
+  if (!program) {
+    report_semantics_error("Missing: Expected 'program' property in model object.", context);
+    return false;
+  }
+  isgen = bob_str_map_get(program->val.obj, OBJ_ISGEN_KEY);
+  if (!*isgen) {
+    emit_program(program, context);
+  }
+  program_name = bob_str_map_get(program->val.obj, OBJ_ID_KEY);
+  if (!program_name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+
+  char *texture_name;
+  tnode_s *texture = bob_str_map_get(model->val.obj, M_KEY("texture"));
+  if (!texture) {
+    report_semantics_error("Missing: Expected 'texture' property in model object.", context);
+    return false;
+  }
+  isgen = bob_str_map_get(texture->val.obj, OBJ_ISGEN_KEY);
+  if (!*isgen) {
+    emit_texture(texture, context);
+  }
+  texture_name = bob_str_map_get(texture->val.obj, OBJ_ID_KEY);
+  if (!texture_name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+
+  emit_code("--------------------------------------------------------------------------------\n", &context->modelcode);
+  emit_code("-- GENERATING MODEL: ", &context->modelcode);
+  emit_code(name, &context->modelcode);
+  emit_code("\n", &context->modelcode);
+  emit_code("--------------------------------------------------------------------------------\n", &context->modelcode);
+  emit_code(" INSERT INTO model(meshID,programID,textureID) VALUES(\n", &context->modelcode);
+  emit_code(" \t(SELECT id FROM ", &context->modelcode);
+  emit_code(mesh_name, &context->modelcode);
+  emit_code("),\n", &context->modelcode); 
+  emit_code(" \t(SELECT id FROM ", &context->modelcode);
+  emit_code(program_name, &context->modelcode);
+  emit_code("),\n", &context->modelcode); 
+  emit_code(" \t(SELECT id FROM ", &context->modelcode);
+  emit_code(texture_name, &context->modelcode);
+  emit_code(")\n );\n", &context->modelcode); 
+  emit_code(" CREATE TEMP TABLE ", &context->modelcode);
+  emit_code(name, &context->modelcode);
+  emit_code("(id INTEGER PRIMARY KEY);\n", &context->modelcode);
+  emit_code(" INSERT INTO ", &context->modelcode);
+  emit_code(name, &context->modelcode);
+  emit_code("(id) VALUES (last_insert_rowid());\n", &context->modelcode);
+  bob_str_map_update(model->val.obj, OBJ_ISGEN_KEY, (void *)&isgen_true);
+  return true;
+}
+
+bool emit_mesh(tnode_s *mesh, p_context_s *context) {
+  int i;
+  const bool *isgen;
+  char *name = bob_str_map_get(mesh->val.obj, OBJ_ID_KEY);
+  if (!name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+  char *sname;
+  tnode_s *sname_node = bob_str_map_get(mesh->val.obj, M_KEY("name"));
+  if (sname_node) {
+    sname = sname_node->val.s;
+  }
+  else {
+    sname = name;
+  }
+  tnode_s *vertices = bob_str_map_get(mesh->val.obj, M_KEY("vertices"));
+  if (!vertices) {
+    report_semantics_error("Missing: Expected 'vertices' property in mesh object.", context);
+    return false;
+  }
+  if (vertices->type != PTYPE_ARRAY) {
+    report_semantics_error("Expected array type for vertices", context);
+    return false;
+  }
+  if (vertices->val.atval.type != PTYPE_INT && vertices->val.atval.type != PTYPE_FLOAT) {
+    report_semantics_error("Expected array of type integer or float for vertices", context);
+    return false;
+  }
+  tnode_list_s vertex_array = vertices->val.atval.arr;
+
+  CharBuf vertexstr;
+  char_buf_init(&vertexstr);
+
+  for (i = 0; i < vertex_array.size - 1; i++) {
+    char_add_s(&vertexstr, vertex_array.list[i]->tok->lexeme);
+    char_add_s(&vertexstr, ",");
+  }
+  char_add_s(&vertexstr, vertex_array.list[i]->tok->lexeme);
+
+  emit_code("--------------------------------------------------------------------------------\n", &context->meshcode);
+  emit_code("-- GENERATING MESH: ", &context->meshcode);
+  emit_code(name, &context->meshcode);
+  emit_code("\n", &context->meshcode);
+  emit_code("--------------------------------------------------------------------------------\n", &context->meshcode);
+  emit_code(" INSERT INTO mesh(name,data) VALUES(", &context->meshcode);
+  emit_code("\"", &context->meshcode);
+  emit_code(sname, &context->meshcode);
+  emit_code("\",\"", &context->meshcode);
+  emit_code(vertexstr.buffer, &context->meshcode);
+  emit_code("\");\n", &context->meshcode);
+  emit_code(" CREATE TEMP TABLE ", &context->meshcode);
+  emit_code(name, &context->meshcode);
+  emit_code("(id INTEGER PRIMARY KEY);\n", &context->meshcode);
+  emit_code(" INSERT INTO ", &context->meshcode);
+  emit_code(name, &context->meshcode);
+  emit_code("(id) VALUES (last_insert_rowid());\n", &context->meshcode);
+
+  char_buf_free(&vertexstr);
+  bob_str_map_update(mesh->val.obj, OBJ_ISGEN_KEY, (void *)&isgen_true);
+  return true;
+}
+
+bool emit_program(tnode_s *program, p_context_s *context) {
+  const bool *isgen;
+
+  char *name = bob_str_map_get(program->val.obj, OBJ_ID_KEY);
+  if (!name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+  emit_code("--------------------------------------------------------------------------------\n", &context->programcode);
+  emit_code("-- GENERATING PROGRAM: ", &context->programcode);
+  emit_code(name, &context->programcode);
+  emit_code("\n", &context->programcode);
+  emit_code("--------------------------------------------------------------------------------\n", &context->programcode);
+  emit_code(" INSERT INTO program(id) VALUES(null);\n", &context->programcode);
+
+  emit_code(" CREATE TEMP TABLE ", &context->programcode);
+  emit_code(name, &context->programcode);
+  emit_code("(id INTEGER PRIMARY KEY);\n", &context->programcode);
+  emit_code(" INSERT INTO ", &context->programcode);
+  emit_code(name, &context->programcode);
+  emit_code("(id) VALUES (last_insert_rowid());\n", &context->programcode);
+
+  check_shader(program, context, M_KEY("vertex"), name, BOB_VERTEX_SHADER);
+  check_shader(program, context, M_KEY("tessellation"), name, BOB_TESSELLATION_SHADER);
+  check_shader(program, context, M_KEY("evaluation"), name, BOB_EVALUATION_SHADER);
+  check_shader(program, context, M_KEY("geometry"), name, BOB_GEOMETRY_SHADER);
+  check_shader(program, context, M_KEY("fragment"), name, BOB_FRAGMENT_SHADER);
+  check_shader(program, context, M_KEY("compute"), name, BOB_COMPUTE_SHADER);
+
+  bob_str_map_update(program->val.obj, OBJ_ISGEN_KEY, (void *)&isgen_true);
+  return true;
+}
+
+bool emit_shader(tnode_s *shader, bob_shader_e type, p_context_s *context) {
+  char *name = bob_str_map_get(shader->val.obj, OBJ_ID_KEY);
+  if (!name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+
+  char *sname;
+  tnode_s *sname_node = bob_str_map_get(shader->val.obj, M_KEY("name"));
+  if (!sname_node) {
+    sname = name;
+  }
+  else {
+    sname = sname_node->val.s;
+  }
+
+  char *src;
+  tnode_s *src_node = bob_str_map_get(shader->val.obj, M_KEY("src"));
+  if (!src) {
+    report_semantics_error("Shader missing required 'src' property", context); 
+    return false;
+  }
+  src = src_node->val.s;
+
+  CharBuf typebuf, srcbuf;
+  char_buf_init(&typebuf);
+  char_add_i(&typebuf, type);
+  
+  srcbuf = pad_quotes(src);
+
+  emit_code("--------------------------------------------------------------------------------\n", &context->shadercode);
+  emit_code("-- GENERATING SHADER: ", &context->shadercode);
+  emit_code(name, &context->shadercode);
+  emit_code("\n", &context->shadercode);
+  emit_code("--------------------------------------------------------------------------------\n", &context->shadercode);
+  emit_code(" INSERT INTO shader(type,name,src) VALUES(", &context->shadercode);
+  emit_code(typebuf.buffer, &context->shadercode);
+  emit_code(",", &context->shadercode);
+  emit_code("\"", &context->shadercode);
+  emit_code(sname, &context->shadercode);
+  emit_code("\",\"", &context->shadercode);
+  emit_code(srcbuf.buffer, &context->shadercode);
+  emit_code("\");\n", &context->shadercode);
+  emit_code(" CREATE TEMP TABLE ", &context->shadercode);
+  emit_code(name, &context->shadercode);
+  emit_code("(id INTEGER PRIMARY KEY);\n", &context->shadercode);
+  emit_code(" INSERT INTO ", &context->shadercode);
+  emit_code(name, &context->shadercode);
+  emit_code("(id) VALUES (last_insert_rowid());\n", &context->shadercode);
+  bob_str_map_update(shader->val.obj, OBJ_ISGEN_KEY, (void *)&isgen_true);
+  char_buf_free(&typebuf);
+  char_buf_free(&srcbuf);
+  return true;
+}
+
+bool emit_texture(tnode_s *texture, p_context_s *context) {
+  char *name = bob_str_map_get(texture->val.obj, OBJ_ID_KEY);
+  if (!name) {
+    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+    return false;
+  }
+  char *path;
+  tnode_s *path_node = bob_str_map_get(texture->val.obj, M_KEY("path"));
+  if (!path_node) {
+    report_semantics_error("Error in texture: expected 'path' property", context); 
+    return false;
+  }
+  path = path_node->val.s;
+
+  emit_code("--------------------------------------------------------------------------------\n", &context->texturecode);
+  emit_code("-- GENERATING TEXTURE: ", &context->texturecode);
+  emit_code(name, &context->texturecode);
+  emit_code("\n", &context->texturecode);
+  emit_code("--------------------------------------------------------------------------------\n", &context->texturecode);
+  emit_code(" INSERT INTO texture(path) VALUES(", &context->texturecode);
+  emit_code(path, &context->texturecode);
+  emit_code(");\n", &context->texturecode);
+  emit_code(" CREATE TEMP TABLE ", &context->texturecode);
+  emit_code(name, &context->texturecode);
+  emit_code("(id INTEGER PRIMARY KEY);\n", &context->texturecode);
+  emit_code(" INSERT INTO ", &context->texturecode);
+  emit_code(name, &context->texturecode);
+  emit_code("(id) VALUES (last_insert_rowid());\n", &context->texturecode);
+  bob_str_map_update(texture->val.obj, OBJ_ISGEN_KEY, (void *)&isgen_true);
+  return true;
 }
 
 bool emit_instances(tnode_s *level, char *levelid, p_context_s *context) {
@@ -1518,15 +1840,86 @@ bool emit_instances(tnode_s *level, char *levelid, p_context_s *context) {
     return false;
   }
   tnode_arraytype_val_s atval = instances->val.atval;
-  printf("type: %d\n", atval.type);
   if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE) {
     emit_instance_batch(levelid, atval.arr, context);
   }
   else {
     report_semantics_error("Instances must be an array of objects or instance types", context);
   }
-
   return true;
+}
+
+bool check_shader(tnode_s *program, p_context_s *context, const char *shader_key, const char *programname, bob_shader_e type) {
+  bool *isgen;
+  tnode_s *shader = bob_str_map_get(program->val.obj, shader_key);
+  if (shader) {
+    isgen = bob_str_map_get(program->val.obj, OBJ_ISGEN_KEY);
+    if (!*isgen) {
+      emit_shader(shader, type, context);
+    }
+    char *shadername = bob_str_map_get(shader->val.obj, OBJ_ID_KEY);
+    if (!shadername) {
+      report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
+      return false;
+    }
+    emit_code(" INSERT INTO program_xref(shaderID, programID) VALUES(\n", &context->programcode);
+    emit_code(" \t(SELECT id FROM ", &context->programcode);
+    emit_code(shadername, &context->programcode);
+    emit_code("),\n \t(SELECT id FROM ", &context->programcode);
+    emit_code(programname, &context->programcode);
+    emit_code(")\n );\n", &context->programcode);
+  }
+}
+
+void gen_code(p_context_s *context, FILE *dest) {
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* MESHES\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->meshcode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
+
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* SHADERS\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->shadercode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
+
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* PROGRAMS\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->programcode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
+
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* TEXTURES\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->texturecode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
+
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* MODELS\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->modelcode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
+
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* LEVELS\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->levelcode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
+
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* INSTANCES\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->instancecode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
 }
 
 char *strip_quotes(char *level_name) {
