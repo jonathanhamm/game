@@ -6,10 +6,10 @@
 #include <cglm/cglm.h>
 #include <GL/glew.h>
 
-typedef struct Asset Asset;
 typedef struct Model Model;
+typedef struct Instance Instance;
 
-struct Asset {
+struct Model {
 	GlProgram *program;
 	GlTexture *texture;
 	GLuint vbo;
@@ -19,8 +19,8 @@ struct Asset {
 	GLint drawCount;
 };
 
-struct Model {
-	Asset *asset;
+struct Instance {
+	Model *model;
 	float mass;
 	vec3 pos;
 	vec3 velocity;
@@ -31,14 +31,14 @@ struct Model {
 	PointerVector *gravity_space;
 };
 
-extern Asset *get_asset_test1(void);
+extern Model *get_model_test1(void);
 
-extern PointerVector gen_models_test1(void);
+extern PointerVector gen_instances_test1(void);
 
 /* Actual functions */
-extern void model_update_position(Model *m, float dt);
-extern void model_rotate(Model *m, float x, float y, float z);
-extern void model_get_matrix(Model *m, mat4 m4);
+extern void instance_update_position(Instance *i, float dt);
+extern void instance_rotate(Instance *i, float x, float y, float z);
+extern void instance_get_matrix(Instance *i, mat4 m4);
 
 
 #endif

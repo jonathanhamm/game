@@ -146,6 +146,38 @@ void char_buf_free(CharBuf *b) {
 	b->buffer = NULL;
 }
 
+int float_buf_init(FloatBuf *b) {
+	b->size = 0;
+	b->buf_size = INIT_FLOAT_BUF_SIZE;
+	
+	void *buffer = malloc(sizeof(double) * INIT_FLOAT_BUF_SIZE);
+	if (!buffer)
+		return STATUS_OUT_OF_MEMORY;
+	b->buffer = buffer;
+	return STATUS_OK;
+}
+
+int float_add_f(FloatBuf *b, GLfloat d) {
+	size_t buf_size = b->buf_size;
+	GLfloat *buffer = b->buffer;
+
+	if (b->size == buf_size) {
+		buf_size *= 2;
+		buffer = realloc(buffer, buf_size * sizeof(double));
+		if (!buffer)
+			return STATUS_OUT_OF_MEMORY;
+		b->buf_size = buf_size;
+		b->buffer = buffer;
+	}
+	buffer[b->size++] = d; 
+	return STATUS_OK;
+}
+
+void float_buf_free(FloatBuf *b) {
+  free(b->buffer);
+  b->buffer = NULL;
+}
+
 int pointer_vector_init(PointerVector *vp) {
 	vp->size = 0;
 	vp->buf_size = INIT_VECTOR_BUF_SIZE;
@@ -189,7 +221,7 @@ void bob_str_map_init(StrMap *m) {
 }
 
 int bob_str_map_insert(StrMap *m, const char *key, void *val) {
-	unsigned index = pjw_hash(key) % MAP_TABLE_SIZE;
+	unsigned index = pjw_hash(key);
 	StrMapEntry **pcurr = &m->table[index], *curr = *pcurr;
 	StrMapEntry *n = malloc(sizeof *n);
 
@@ -242,6 +274,80 @@ void *bob_str_map_get(StrMap *m, const char *key) {
 void *bob_str_map_free(StrMap *m) {
 	int i;
 	StrMapEntry *entry, *bck;
+
+	for (i = 0; i < MAP_TABLE_SIZE; i++) {
+		entry = m->table[i];
+		while (entry) {
+			bck = entry->next;	
+			free(entry);
+			entry = bck;
+		}
+	}
+}
+
+void bob_int_map_init(IntMap *m) {
+	int i;
+
+	m->size = 0;
+	for (i = 0; i < MAP_TABLE_SIZE; i++) {
+		m->table[i] = NULL;
+	}
+}
+
+int bob_int_map_insert(IntMap *m, int key, void *val) {
+	unsigned index = key % MAP_TABLE_SIZE;
+	IntMapEntry **pcurr = &m->table[index], *curr = *pcurr;
+	IntMapEntry *n = malloc(sizeof *n);
+
+	if (!n) 
+		return STATUS_OUT_OF_MEMORY;
+	n->key = key;
+	n->val = val;
+	n->next = NULL;
+
+	if (curr) {
+		while (curr->next)
+			curr = curr->next;
+		curr->next = n;
+	} 
+	else {
+		*pcurr = n;	
+	}
+	m->size++;
+	return STATUS_OK;
+}
+
+int bob_int_map_update(IntMap *m, int key, void *val) {
+	unsigned index = key % MAP_TABLE_SIZE;
+	IntMapEntry *entry = m->table[index];
+
+  while (entry) {
+    if (entry->key == key) {
+      entry->val = val;
+      return STATUS_OK;
+    }
+    entry = entry->next;
+  }
+	return -1;
+}
+
+void *bob_int_map_get(IntMap *m, int key) {
+	unsigned index = key % MAP_TABLE_SIZE;
+	IntMapEntry *entry = m->table[index];
+
+	if (entry) {
+		while (entry) {
+			if (entry->key == key)
+				return entry->val;
+			entry = entry->next;
+		}
+	}
+	return NULL;
+}
+
+void *bob_int_map_free(IntMap *m) {
+	int i;
+	IntMapEntry *entry, *bck;
 
 	for (i = 0; i < MAP_TABLE_SIZE; i++) {
 		entry = m->table[i];

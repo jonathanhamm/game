@@ -1,9 +1,9 @@
 #include "game.h"
 #include "log.h"
-#include "camera.h"
 #include "meshes.h"
 #include "glprogram.h"
 #include "models.h"
+#include "loadlevel.h"
 #include <cglm/cglm.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -11,11 +11,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-struct Level {
-	float dt;
-	Camera camera;
-	PointerVector models;
-};
 
 static void level_render(Level *level);
 
@@ -31,18 +26,18 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
 
-static void render_model(Model *model, Camera *camera) {
+static void render_instance(Instance *instance, Camera *camera) {
 	mat4 mmatrix;	
 	mat4 cmatrix;	
 	GLint model_handle, camera_handle, tex_handle;
 	GLint program;
-	Asset *a = model->asset;
+	Model *m = instance->model;
 
-	program = a->program->handle;
-	model_get_matrix(model, mmatrix);
+	program = m->program->handle;
+	instance_get_matrix(instance, mmatrix);
 	camera_get_matrix(camera, cmatrix);
 
-	glUseProgram(a->program->handle);
+	glUseProgram(m->program->handle);
 	model_handle = glGetUniformLocation(program, "model");
 	camera_handle = glGetUniformLocation(program, "camera");
 	tex_handle = glGetUniformLocation(program, "tex");
@@ -52,10 +47,10 @@ static void render_model(Model *model, Camera *camera) {
 	glUniform1i(tex_handle, 0);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, a->texture->handle); 
+	glBindTexture(GL_TEXTURE_2D, m->texture->handle); 
 
-	glBindVertexArray(a->vao);
-	glDrawArrays(a->drawType, a->drawStart, a->drawCount);
+	glBindVertexArray(m->vao);
+	glDrawArrays(m->drawType, m->drawStart, m->drawCount);
 
 	glBindVertexArray(0);
 	glBindTexture(GL_TEXTURE_2D, 0); 
@@ -68,10 +63,10 @@ void level_render(Level *level) {
 	double currTime = glfwGetTime();
 	float dt = (float)(currTime - level->dt);
 
-	for (i = 0; i < level->models.size; i++) {
-		Model *model = level->models.buffer[i];
-		model_update_position(model, dt);
-		render_model(level->models.buffer[i], &level->camera);
+	for (i = 0; i < level->instances.size; i++) {
+		Instance *instance = level->instances.buffer[i];
+		instance_update_position(instance, dt);
+		render_instance(level->instances.buffer[i], &level->camera);
 		return;
 	}
 
@@ -118,9 +113,12 @@ void bob_start(void) {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 					
+  bob_db_s *bdb = bob_loaddb("level/test.db");
+  Level *blvl = bob_loadlevel(bdb, "hello");
+
 	Level level;
 	level.dt = glfwGetTime();
-	level.models = gen_models_test1();
+	level.instances = gen_instances_test1();
 	camera_init(&level.camera);
 
 

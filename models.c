@@ -22,8 +22,8 @@ PointerVector get_basic_shaders1(void) {
 	return pv;
 }
 
-Asset *get_asset_test1(void) {
-	Asset *a = malloc(sizeof *a);
+Model *get_model_test1(void) {
+	Model *m = malloc(sizeof *m);
 	GLint handle;
 	PointerVector shaders = get_basic_shaders1();
 	GlProgram *program = malloc(sizeof *program);	
@@ -31,13 +31,13 @@ Asset *get_asset_test1(void) {
 
 	gl_create_program(program, shaders);
 
-	a->program = program;
+	m->program = program;
 
-	glGenBuffers(1, &a->vbo);
-	glGenVertexArrays(1, &a->vao);
+	glGenBuffers(1, &m->vbo);
+	glGenVertexArrays(1, &m->vao);
 
-	glBindVertexArray(a->vao);
-	glBindBuffer(GL_ARRAY_BUFFER, a->vbo);
+	glBindVertexArray(m->vao);
+	glBindBuffer(GL_ARRAY_BUFFER, m->vbo);
 	glBufferData(GL_ARRAY_BUFFER, TEST_MESH1_SIZE, test_mesh1, GL_STATIC_DRAW);
 
 
@@ -52,79 +52,79 @@ Asset *get_asset_test1(void) {
 	glBindVertexArray(0);
 
 	gl_load_texture(texture, "textures/pge_icon.png");
-	a->texture = texture;
-	a->drawType = GL_TRIANGLE_STRIP;
-	a->drawStart = 1;
-	a->drawCount = 7*2*3;
+	m->texture = texture;
+	m->drawType = GL_TRIANGLE_STRIP;
+	m->drawStart = 1;
+	m->drawCount = 7*2*3;
 
-	return a;
+	return m;
 }
 
-PointerVector gen_models_test1(void) {
+PointerVector gen_instances_test1(void) {
 	int result;
 	PointerVector pv;
 
-	Model *m;
+	Instance *i;
 
-	Asset *a1 = get_asset_test1();
+	Model *m1 = get_model_test1();
 	result = pointer_vector_init(&pv);
 
-	m = malloc(sizeof *m);
-	m->asset = a1;
-	m->mass = 1.0;
-	glm_vec3_copy((vec3){0,0,0}, m->pos);
-	glm_vec3_copy((vec3){0,0,0}, m->velocity);
-	glm_vec3_copy((vec3){0,0,0}, m->acceleration);
-	glm_vec3_copy((vec3){1,1,0}, m->scale);
-	glm_vec3_copy((vec3){1,1,0}, m->rotation);
-	pointer_vector_add(&pv, m);
+	i = malloc(sizeof *i);
+	i->model = m1;
+	i->mass = 1.0;
+	glm_vec3_copy((vec3){0,0,0}, i->pos);
+	glm_vec3_copy((vec3){0,0,0}, i->velocity);
+	glm_vec3_copy((vec3){0,0,0}, i->acceleration);
+	glm_vec3_copy((vec3){1,1,0}, i->scale);
+	glm_vec3_copy((vec3){1,1,0}, i->rotation);
+	pointer_vector_add(&pv, i);
 
 
-	m = malloc(sizeof *m);
-	m->asset = a1;
-	m->mass = 1.0;
-	glm_vec3_copy((vec3){-5,0,0}, m->pos);
-	glm_vec3_copy((vec3){0,0,0}, m->velocity);
-	glm_vec3_copy((vec3){0,0,0}, m->acceleration);
-	glm_vec3_copy((vec3){2,1,0}, m->scale);
-	glm_vec3_copy((vec3){2,1,0}, m->rotation);
-	pointer_vector_add(&pv, m);
+	i = malloc(sizeof *i);
+	i->model = m1;
+	i->mass = 1.0;
+	glm_vec3_copy((vec3){-5,0,0}, i->pos);
+	glm_vec3_copy((vec3){0,0,0}, i->velocity);
+	glm_vec3_copy((vec3){0,0,0}, i->acceleration);
+	glm_vec3_copy((vec3){2,1,0}, i->scale);
+	glm_vec3_copy((vec3){2,1,0}, i->rotation);
+	pointer_vector_add(&pv, i);
 
-	m = malloc(sizeof *m);
-	m->asset = a1;
-	m->mass = 1.0;
-	glm_vec3_copy((vec3){5,0,2}, m->pos);
-	glm_vec3_copy((vec3){0,0,0}, m->velocity);
-	glm_vec3_copy((vec3){0,0,0}, m->acceleration);
-	glm_vec3_copy((vec3){2,1,0}, m->scale);
-	glm_vec3_copy((vec3){2,1,0}, m->rotation);
-	pointer_vector_add(&pv, m);
+	i = malloc(sizeof *i);
+	i->model = m1;
+	i->mass = 1.0;
+	glm_vec3_copy((vec3){5,0,2}, i->pos);
+	glm_vec3_copy((vec3){0,0,0}, i->velocity);
+	glm_vec3_copy((vec3){0,0,0}, i->acceleration);
+	glm_vec3_copy((vec3){2,1,0}, i->scale);
+	glm_vec3_copy((vec3){2,1,0}, i->rotation);
+	pointer_vector_add(&pv, i);
 	return pv;
 }
 
-void model_update_position(Model *m, float dt) {
-	float *p = m->pos;
-	float *v = m->velocity;	
-	float *a = m->acceleration;
+void instance_update_position(Instance *i, float dt) {
+	float *p = i->pos;
+	float *v = i->velocity;	
+	float *a = i->acceleration;
 
-	v[0] += (a[0] / m->mass) * dt;
-	v[1] += (a[1] / m->mass) * dt;
-	v[2] += (a[2] / m->mass) * dt;
+	v[0] += (a[0] / i->mass) * dt;
+	v[1] += (a[1] / i->mass) * dt;
+	v[2] += (a[2] / i->mass) * dt;
 	p[0] += v[0] * dt;
 	p[1] += v[1] * dt;
 	p[2] += v[2] * dt;
 }
 
-void model_rotate(Model *m, float x, float y, float z) {	
-	float *r = m->rotation;
+void instance_rotate(Instance *i, float x, float y, float z) {	
+	float *r = i->rotation;
 	r[0] += x;
 	r[1] += y;
 	r[2] += z;
 }
 
-void model_get_matrix(Model *m, mat4 m4) {
+void instance_get_matrix(Instance *i, mat4 m4) {
 	glm_mat4_identity(m4);	
-	glm_translate(m4, m->pos);
-	glm_scale(m4, m->scale);
+	glm_translate(m4, i->pos);
+	glm_scale(m4, i->scale);
 }
 
