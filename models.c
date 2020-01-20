@@ -40,7 +40,6 @@ Model *get_model_test1(void) {
 	glBindBuffer(GL_ARRAY_BUFFER, m->vbo);
 	glBufferData(GL_ARRAY_BUFFER, TEST_MESH1_SIZE, test_mesh1, GL_STATIC_DRAW);
 
-
 	handle = gl_shader_attrib(program, "vert");
 	glEnableVertexAttribArray(handle);
 	glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), NULL);

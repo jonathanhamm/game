@@ -23,13 +23,20 @@ const char *mesh_qstr =
   "SELECT name, data"
   " FROM mesh"
   " WHERE id=?";
+const char *shader_qstr = 
+  "SELECT name, type, src"
+  " FROM shader AS s JOIN program_xref AS px"
+  " ON s.id=px.shaderID"
+  " WHERE px.programID=?";
 
 struct bob_db_s {
   sqlite3 *db;
   sqlite3_stmt *qlevel;
   sqlite3_stmt *qmodel;
   sqlite3_stmt *qmesh;
+  sqlite3_stmt *qshader;
   IntMap models;
+  IntMap shaders;
 };
 
 static sqlite3_stmt *query_level;
@@ -37,6 +44,7 @@ static sqlite3_stmt *query_level;
 static int prepare_queries(bob_db_s *bdb);
 static Model *bob_dbload_model(bob_db_s *bdb, int modelID);
 static void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID);
+static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
 static int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext);
 
 bob_db_s *bob_loaddb(const char *path) {
@@ -49,14 +57,13 @@ bob_db_s *bob_loaddb(const char *path) {
   }
 
   bob_int_map_init(&bdb->models);
-
+  bob_int_map_init(&bdb->shaders);
   rc = sqlite3_open(path, &bdb->db);
   if (rc != SQLITE_OK) {
     perror("error opening database");
     sqlite3_close(bdb->db);
     return NULL;
   }
-  
   rc = prepare_queries(bdb);
   if (rc) {
     log_error("Failed to prepare queries");
@@ -95,7 +102,7 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       mass = sqlite3_column_double(bdb->qlevel, 5);
       bob_dbload_model(bdb, modelID);
     }
-    else if (rc = SQLITE_DONE) {
+    else if (rc == SQLITE_DONE) {
       break;
     }
     else {
@@ -112,17 +119,22 @@ int prepare_queries(bob_db_s *bdb) {
 
   rc = sqlite3_prepare_v2(bdb->db, level_qstr, -1, &bdb->qlevel, 0);
   if (rc != SQLITE_OK) {
-    perror("failed to prepare level query");
+    log_error("failed to prepare level query");
     return -1;
   }
   rc = sqlite3_prepare_v2(bdb->db, model_qstr, -1, &bdb->qmodel, 0);
   if (rc != SQLITE_OK) {
-    perror("failed to prepare model query");
+    log_error("failed to prepare model query");
     return -1;
   }
   rc = sqlite3_prepare_v2(bdb->db, mesh_qstr, -1, &bdb->qmesh, 0);
   if (rc != SQLITE_OK) {
-    perror("failed to prepare mesh query");
+    log_error("failed to prepare mesh query");
+    return -1;
+  }
+  rc = sqlite3_prepare_v2(bdb->db, shader_qstr, -1, &bdb->qshader, 0);
+  if (rc != SQLITE_OK) {
+    log_error("failed to prepare shader query");
     return -1;
   }
   return 0;
@@ -143,7 +155,6 @@ Model *bob_dbload_model(bob_db_s *bdb, int modelID) {
 
   m->drawType = GL_TRIANGLE_STRIP;
   m->drawStart = 1;
-  
   log_debug("loading model %d", modelID);
   rc = sqlite3_bind_int(bdb->qmodel, 1, modelID);
   if (rc != SQLITE_OK) {
@@ -153,12 +164,13 @@ Model *bob_dbload_model(bob_db_s *bdb, int modelID) {
 
   int meshID, programID, textureID, hasUV;
   rc = sqlite3_step(bdb->qmodel);
-  if (rc = SQLITE_ROW) {
+  if (rc == SQLITE_ROW) {
     meshID = sqlite3_column_int(bdb->qmodel, 0);
     programID = sqlite3_column_int(bdb->qmodel, 1);
     textureID = sqlite3_column_int(bdb->qmodel, 2);
     hasUV = sqlite3_column_int(bdb->qmodel, 3);
     bob_dbload_mesh(bdb, m, meshID);
+    bob_dbload_program(bdb, m, programID);
   }
   rc = sqlite3_step(bdb->qmodel);
   if (rc != SQLITE_DONE) {
@@ -185,7 +197,7 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
   }
   const unsigned char *name, *data;
   rc = sqlite3_step(bdb->qmesh);
-  if (rc = SQLITE_ROW) {
+  if (rc == SQLITE_ROW) {
     name = sqlite3_column_text(bdb->qmesh, 0);
     data = sqlite3_column_text(bdb->qmesh, 1);
     log_info("loaded mesh of name %s with data %s", name, data);
@@ -197,7 +209,6 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
     glBindVertexArray(m->vao);
     glBindBuffer(GL_ARRAY_BUFFER, m->vbo);
     glBufferData(GL_ARRAY_BUFFER, fbuf.size * sizeof(GLfloat), fbuf.buffer, GL_STATIC_DRAW);
-
   }
   rc = sqlite3_step(bdb->qmesh);
   if (rc != SQLITE_DONE) {
@@ -210,6 +221,36 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
   float_buf_free(&fbuf);
 }
 
+int bob_dbload_program(bob_db_s *bdb, Model *m, int programID) {
+  int rc;
+
+  rc = sqlite3_bind_int(bdb->qshader, 1, programID);
+  if (rc != SQLITE_OK) {
+    log_error("failed to bind shaderID parameter to shader query");
+    return -1;
+  }
+  const unsigned char *name;
+  GLenum type;
+  const GLchar *src;
+  while (1) {
+    rc = sqlite3_step(bdb->qshader);
+    if (rc == SQLITE_ROW) {
+      name = sqlite3_column_text(bdb->qshader, 0);
+      type = sqlite3_column_int(bdb->qshader, 1);
+      src = sqlite3_column_text(bdb->qshader, 2);
+      log_info("ready %s - %d - %s", name, type, src);
+    }
+    else if (rc == SQLITE_DONE) {
+      break;
+    }
+    else {
+      log_error("Unexpected result from database shader query: %d\n", rc);
+      return -1;
+    }
+  }
+  sqlite3_reset(bdb->qshader);
+  return -1;
+}
 
 int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext) {
   unsigned char buf[BDB_VERTEXT_BUF], 
