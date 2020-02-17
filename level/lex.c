@@ -103,6 +103,9 @@ toklist_s lex(const char *file_name) {
 							fptr += 2;
 							break;
 						}
+            else if (*fptr == '\n') {
+              lineno++;
+            }
 						fptr++;
 					}
 				}
@@ -120,12 +123,18 @@ toklist_s lex(const char *file_name) {
 				fptr++;
 				while (*fptr && *fptr != '"') {
 					if (*fptr == '\\') {
-						if (*(fptr + 1))
+            char c = *(fptr + 1);
+						if (c) {
+              if (c == '\n')
+                lineno++;
 							fptr += 2;
+            }
 						else
 							fptr++;
 					}
 					else {
+            if (*fptr == '\n')
+              lineno++;
 						fptr++;
 					}
 				}

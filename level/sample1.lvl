@@ -12,11 +12,30 @@
   Mesh mesh1 := {
     "vertices": [ 1.0, 23, 234]
   }
+  Texture texture := {
+    "path": "textures/pge_icon.png"
+  }
   Program program1 := {
     "vertex": {
-      "src": "test1" 
+      "src":
+        "#version 400
+
+        uniform mat4 camera;
+        uniform mat4 model;
+
+        in vec3 vert;
+        in vec2 vertexCoord;
+
+        out vec2 fragTexCoord;
+
+
+        void main() {
+            fragTexCoord = vertexCoord;
+            gl_Position = camera * model * vec4(vert, 1);
+        }
+      " 
     },
-    "tessellation": {
+    /* "tessellation": {
       "src": "test1" 
     },
     "evaluation": {
@@ -24,27 +43,40 @@
     },
     "geometry": {
       "src": "test1" 
-    },
+    },*/
     "fragment": {
-      "src": "test1" 
-    },
+      "src":
+        "#version 400
+
+          uniform sampler2D tex;
+
+          in vec2 fragTexCoord;
+
+          out vec4 finalColor;
+
+          void main() {
+              //finalColor = texture(tex, fragTexCoord);
+              finalColor =  texture(tex, fragTexCoord) * vec4(0.5, 0.5, 1.0, 1.0);
+              //finalColor = vec4(fragTexCoord, 0, 1) * vec4(0.5, 0.5, 1.0, 1.0);
+          }
+        "
+    }
+    /*
     "compute": {
       "src": "test1" 
-    }
+    }*/
   }
 	Model m1 := {
 		"mesh": mesh1,
     "program": program1,
     "hasUV": 1,
-    "texture": {
-      "path": "test"
-    }
+    "texture": texture
 	}
 
 	Level turd := {
 		"name": derp,
 		"instances": [
-			{ "x": 1.0, "y": 1.0, "z": 1.0+3*4-2, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 0.0, "mass": 1.0, "model": m1 },
 			{ "x": 1.0, "y": 1.0, "z": 1.0+3*4-2, "mass": 1.0, "model": m1 },
 			{ "x": 1.0, "y": 1.0, "z": 1.0+3*4-2, "mass": 1.0, "model": m1 },
 			{ "x": 1.0, "y": 1.0, "z": 1.0+3*4-2, "mass": 1.0, "model": m1 },
@@ -63,7 +95,17 @@
 			{ "x": 1.0, "y": 1.0, "z": 1.0/22*4, "mass": 1.0, "model": m1 },
 			{ "x": 1.0, "y": 1.0, "z": 1.0/22*4, "mass": 1.0, "model": m1 },
 			{ "x": 1.0, "y": 1.0, "z": 1.0/22*4, "mass": 1.0, "model": m1 },
-			{ "x": 1.0, "y": 1.0, "z": 1.0/22*4, "mass": 1.0, "model": m1 }
+			{ "x": 1.0, "y": 1.0, "z": -1, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": -2, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": -3, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": -4, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": -5, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": -0, "mass": 1.0, "model": m1 },
+			{ "x": 1.0, "y": 1.0, "z": 1, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": 2, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": 3, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": 4, "mass": 1.0, "model": m1 },
+			{ "x": 0.0, "y": 0.0, "z": 5, "mass": 1.0, "model": m1 }
 		]
 	}
 

@@ -563,6 +563,7 @@ tnode_s *parse_factor(p_context_s *context) {
           //TODO: handle return value
           exec_negate(expression);
         }
+        factor = expression;
         parse_idsuffix(context, &factor);
       }
       break;
@@ -1512,7 +1513,8 @@ bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
 
   tnode_s *vz = bob_str_map_get(obj, M_KEY("z"));
   if (!vz) {
-    report_semantics_error("Instance missing required 'vz' property", context);
+    report_semantics_error("Instance missing required 'z' property", context);
+    fprintf(stderr, "lineno: %d\n", instance->tok->lineno);
     return false;
   }
   CharBuf zbuf = val_to_str(vz);
@@ -1768,8 +1770,8 @@ bool emit_program(tnode_s *program, p_context_s *context) {
   emit_code("(id) VALUES (last_insert_rowid());\n", &context->programcode);
 
   check_shader(program, context, M_KEY("vertex"), name, BOB_VERTEX_SHADER);
-  check_shader(program, context, M_KEY("tessellation"), name, BOB_TESSELLATION_SHADER);
-  check_shader(program, context, M_KEY("evaluation"), name, BOB_EVALUATION_SHADER);
+  check_shader(program, context, M_KEY("tess_eval"), name, BOB_TESS_EVAL_SHADER);
+  check_shader(program, context, M_KEY("tess_control"), name, BOB_TESS_CONTROL_SHADER);
   check_shader(program, context, M_KEY("geometry"), name, BOB_GEOMETRY_SHADER);
   check_shader(program, context, M_KEY("fragment"), name, BOB_FRAGMENT_SHADER);
   check_shader(program, context, M_KEY("compute"), name, BOB_COMPUTE_SHADER);
@@ -1794,19 +1796,21 @@ bool emit_shader(tnode_s *shader, bob_shader_e type, p_context_s *context) {
     sname = sname_node->val.s;
   }
 
-  char *src;
+  char *src, *src_stripped;
   tnode_s *src_node = bob_str_map_get(shader->val.obj, M_KEY("src"));
   if (!src) {
     report_semantics_error("Shader missing required 'src' property", context); 
     return false;
   }
   src = src_node->val.s;
+  src_stripped = strip_quotes(src);
 
   CharBuf typebuf, srcbuf;
   char_buf_init(&typebuf);
   char_add_i(&typebuf, type);
   
-  srcbuf = pad_quotes(src);
+
+  srcbuf = pad_quotes(src_stripped);
 
   emit_code("--------------------------------------------------------------------------------\n", &context->shadercode);
   emit_code("-- GENERATING SHADER: ", &context->shadercode);

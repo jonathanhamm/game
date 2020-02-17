@@ -171,7 +171,7 @@ int gl_load_texture(GlTexture *texture, const char *file_path) {
 
 	result = load_png(&texture->png, file_path);
 	if (result) {
-		log_error("Error loading shader %s", file_path);
+		log_error("Error loading texture %s", file_path);
 		return result;
 	}
 

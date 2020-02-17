@@ -53,8 +53,8 @@ Model *get_model_test1(void) {
 	gl_load_texture(texture, "textures/pge_icon.png");
 	m->texture = texture;
 	m->drawType = GL_TRIANGLE_STRIP;
-	m->drawStart = 1;
-	m->drawCount = 7*2*3;
+	m->drawStart = 0;
+	m->drawCount = 6*2*3;
 
 	return m;
 }

@@ -116,9 +116,9 @@ void bob_start(void) {
   bob_db_s *bdb = bob_loaddb("level/test.db");
   Level *blvl = bob_loadlevel(bdb, "hello");
 
-	Level level;
+	Level level = *blvl;
 	level.dt = glfwGetTime();
-	level.instances = gen_instances_test1();
+	//level.instances = gen_instances_test1();
 	camera_init(&level.camera);
 
 
