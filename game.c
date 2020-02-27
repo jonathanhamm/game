@@ -61,13 +61,27 @@ static void render_instance(Instance *instance, Camera *camera) {
 void level_render(Level *level) {
 	int i;
 	double currTime = glfwGetTime();
+  static float counter = 0.01;
+  static int bob = 0;
 	float dt = (float)(currTime - level->dt);
+
+  level->camera.pos[2] -= 0.001;
+  if (bob <= 100) {
+    level->camera.pos[0] += counter;
+    level->camera.pos[1] += counter;
+  }
+  else {
+    bob = 0;
+    counter = -counter;
+  }
+  bob++;
 
 	for (i = 0; i < level->instances.size; i++) {
 		Instance *instance = level->instances.buffer[i];
 		instance_update_position(instance, dt);
+    //printf("instance pos: <%f %f %f>\n", instance->pos[0], instance->pos[1], instance->pos[2]);
 		render_instance(level->instances.buffer[i], &level->camera);
-		return;
+		//return;
 	}
 
 	level->dt = dt;
@@ -86,7 +100,7 @@ void bob_start(void) {
 		exit(EXIT_FAILURE);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-	window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
+	window = glfwCreateWindow(1000, 1000, "Simple example", NULL, NULL);
 	if (!window) {
 		glfwTerminate();
 		exit(EXIT_FAILURE);
@@ -118,9 +132,36 @@ void bob_start(void) {
 
 	Level level = *blvl;
 	level.dt = glfwGetTime();
-	//level.instances = gen_instances_test1();
+	PointerVector pvt = gen_instances_test1();
+  
 	camera_init(&level.camera);
 
+  int i;
+  for (i = 0; i < level.instances.size; i++) {
+    Instance *inst = (Instance *)level.instances.buffer[i];
+    Model *model = ((Instance *)pvt.buffer[0])->model;
+    //inst->model->vbo = model->vbo;
+    //inst->model->vao = model->vao;
+    printf("inst pos: <%f %f %f>\n", inst->pos[0], inst->pos[1], inst->pos[2]);
+    printf("inst scale: <%f %f %f>\n", inst->scale[0], inst->scale[1], inst->scale[2]);
+    printf("inst model texture: %d\n", inst->model->texture->handle);
+    printf("inst program: %d\n", inst->model->program->handle);
+    printf("inst vbo and vao: %d %d\n", inst->model->vbo, inst->model->vao);
+    printf("inst velocity: <%f %f %f>\n", inst->velocity[0], inst->velocity[1], inst->velocity[2]);
+    printf("inst acceleration: <%f %f %f>\n", inst->acceleration[0], inst->acceleration[1], inst->acceleration[2]);
+    printf("inst draw: %d %d %d\n", inst->model->drawCount, inst->model->drawStart, inst->model->drawType);
+    printf("inst mass: %f\n", inst->mass);
+    puts("--------------------");
+  }
+
+
+  GLenum glError = glGetError();
+  if (glError != GL_NO_ERROR) {
+    log_error("glerror: %d", glError);
+  }
+  else {
+    log_debug("no glerrors");
+  }
 
 	while (!glfwWindowShouldClose(window)) {
 		//float ratio;

@@ -1715,14 +1715,44 @@ bool emit_mesh(tnode_s *mesh, p_context_s *context) {
   }
   tnode_list_s vertex_array = vertices->val.atval.arr;
 
+  tnode_s *tnode;
   CharBuf vertexstr;
+  CharBuf numbuf;
   char_buf_init(&vertexstr);
 
   for (i = 0; i < vertex_array.size - 1; i++) {
-    char_add_s(&vertexstr, vertex_array.list[i]->tok->lexeme);
+    tnode = vertex_array.list[i];
+    if (tnode->type == PTYPE_INT) {
+      char_buf_init(&numbuf);
+      char_add_i(&numbuf, tnode->val.i);
+      char_add_s(&vertexstr, numbuf.buffer);
+      char_buf_free(&numbuf);
+    }
+    else if (tnode->type == PTYPE_FLOAT) {
+      char_buf_init(&numbuf);
+      char_add_d(&numbuf, tnode->val.f);
+      char_add_s(&vertexstr, numbuf.buffer);
+      char_buf_free(&numbuf);
+    }
+    else
+      fprintf(stderr, "Unknown type %d for mesh array.\n", tnode->type);
     char_add_s(&vertexstr, ",");
   }
-  char_add_s(&vertexstr, vertex_array.list[i]->tok->lexeme);
+  tnode = vertex_array.list[i];
+  if (tnode->type == PTYPE_INT) {
+      char_buf_init(&numbuf);
+      char_add_i(&numbuf, tnode->val.i);
+      char_add_s(&vertexstr, numbuf.buffer);
+      char_buf_free(&numbuf);
+  }
+  else if (tnode->type == PTYPE_FLOAT) {
+      char_buf_init(&numbuf);
+      char_add_d(&numbuf, tnode->val.f);
+      char_add_s(&vertexstr, numbuf.buffer);
+      char_buf_free(&numbuf);
+  }
+  else
+    fprintf(stderr, "Unknown type %d for mesh array.\n", tnode->type);
 
   emit_code("--------------------------------------------------------------------------------\n", &context->meshcode);
   emit_code("-- GENERATING MESH: ", &context->meshcode);

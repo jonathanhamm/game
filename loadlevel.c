@@ -1,6 +1,7 @@
 #include "log.h"
 #include "loadlevel.h"
 #include "models.h"
+#include "meshes.h"
 #include "common/errcodes.h"
 #include "common/constants.h"
 #include <sqlite3.h>
@@ -123,6 +124,18 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       inst->pos[1] = vy;
       inst->pos[2] = vz;
       inst->mass = mass;
+      inst->scale[0] = 0.1;
+      inst->scale[1] = 0.1;
+      inst->scale[2] = 0.1;
+      inst->velocity[0] = 0.0;
+      inst->velocity[1] = 0.0;
+      inst->velocity[2] = 0.0;
+      inst->acceleration[0] = 0.0;
+      inst->acceleration[1] = 0.0;
+      inst->acceleration[2] = 0.0;
+      inst->rotation[0] = 2;
+      inst->rotation[1] = 1;
+      inst->rotation[0] = 0;
       log_info("loaded <%f,%f,%f>", vx, vy, vz);
       pointer_vector_add(&lvl->instances, inst);
     }
@@ -199,8 +212,8 @@ Model *bob_dbload_model(bob_db_s *bdb, int modelID) {
     programID = sqlite3_column_int(bdb->qmodel, 1);
     textureID = sqlite3_column_int(bdb->qmodel, 2);
     hasUV = sqlite3_column_int(bdb->qmodel, 3);
-    bob_dbload_mesh(bdb, m, meshID);
     bob_dbload_program(bdb, m, programID);
+    bob_dbload_mesh(bdb, m, meshID);
     bob_dbload_texture(bdb, m, textureID);
   }
   rc = sqlite3_step(bdb->qmodel);
@@ -215,6 +228,7 @@ Model *bob_dbload_model(bob_db_s *bdb, int modelID) {
 
 void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
   int rc;
+  GLint handle;
   CharBuf mbuf;   
   FloatBuf fbuf;
 
@@ -240,6 +254,24 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
     glBindVertexArray(m->vao);
     glBindBuffer(GL_ARRAY_BUFFER, m->vbo);
     glBufferData(GL_ARRAY_BUFFER, fbuf.size * sizeof(GLfloat), fbuf.buffer, GL_STATIC_DRAW);
+
+    int i; 
+    for (i = 0; i < TEST_MESH1_SIZE/sizeof(GLfloat); i++) {
+      if (fbuf.buffer[i] != test_mesh1[i]) {
+        log_error("------------meshes differ %f vs %f!-----------", fbuf.buffer[i], test_mesh1[i]);
+      }
+    }
+
+
+    handle = gl_shader_attrib(m->program, "vert");
+    glEnableVertexAttribArray(handle);
+    glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), NULL);
+
+    handle = gl_shader_attrib(m->program, "vertexCoord");
+    glEnableVertexAttribArray(handle);
+    glVertexAttribPointer(handle, 2, GL_FLOAT, GL_TRUE, 5*sizeof(GLfloat), (const GLvoid *)(3*sizeof(GLfloat)));
+
+    glBindVertexArray(0);
   }
   rc = sqlite3_step(bdb->qmesh);
   if (rc != SQLITE_DONE) {
@@ -277,7 +309,6 @@ int bob_dbload_program(bob_db_s *bdb, Model *m, int programID) {
       bob_type = sqlite3_column_int(bdb->qshader, 1);
       src = sqlite3_column_text(bdb->qshader, 2);
       gl_type = to_gl_shader(bob_type);
-      log_info("shader type: %d vs %d", gl_type, GL_VERTEX_SHADER);
       shader = malloc(sizeof *shader);
       rc = gl_load_shader(shader, gl_type, src, name);
       if (rc != STATUS_OK) {
@@ -357,6 +388,8 @@ int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext) {
         fptr++;
         break;
       default:
+        if (*fptr == '-')
+          *bptr++ = *fptr++;
         if (isdigit(*fptr)) {
           do {
             if (bptr - buf < BDB_VERTEXT_BUF - 1) {

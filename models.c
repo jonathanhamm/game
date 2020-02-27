@@ -16,8 +16,8 @@ PointerVector get_basic_shaders1(void) {
 	result = gl_load_shader_from_file(fragment_shader, GL_FRAGMENT_SHADER, "shaders/fragment.fsh", "test2");
 	
 	pointer_vector_init(&pv);
-	pointer_vector_add(&pv, vertex_shader);
 	pointer_vector_add(&pv, fragment_shader);
+	pointer_vector_add(&pv, vertex_shader);
 
 	return pv;
 }
@@ -74,7 +74,7 @@ PointerVector gen_instances_test1(void) {
 	glm_vec3_copy((vec3){0,0,0}, i->pos);
 	glm_vec3_copy((vec3){0,0,0}, i->velocity);
 	glm_vec3_copy((vec3){0,0,0}, i->acceleration);
-	glm_vec3_copy((vec3){1,1,0}, i->scale);
+	glm_vec3_copy((vec3){1,1,1}, i->scale);
 	glm_vec3_copy((vec3){1,1,0}, i->rotation);
 	pointer_vector_add(&pv, i);
 
@@ -85,7 +85,7 @@ PointerVector gen_instances_test1(void) {
 	glm_vec3_copy((vec3){-5,0,0}, i->pos);
 	glm_vec3_copy((vec3){0,0,0}, i->velocity);
 	glm_vec3_copy((vec3){0,0,0}, i->acceleration);
-	glm_vec3_copy((vec3){2,1,0}, i->scale);
+	glm_vec3_copy((vec3){2,1,1}, i->scale);
 	glm_vec3_copy((vec3){2,1,0}, i->rotation);
 	pointer_vector_add(&pv, i);
 
@@ -95,7 +95,7 @@ PointerVector gen_instances_test1(void) {
 	glm_vec3_copy((vec3){5,0,2}, i->pos);
 	glm_vec3_copy((vec3){0,0,0}, i->velocity);
 	glm_vec3_copy((vec3){0,0,0}, i->acceleration);
-	glm_vec3_copy((vec3){2,1,0}, i->scale);
+	glm_vec3_copy((vec3){2,1,1}, i->scale);
 	glm_vec3_copy((vec3){2,1,0}, i->rotation);
 	pointer_vector_add(&pv, i);
 	return pv;
