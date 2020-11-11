@@ -55,6 +55,8 @@ CREATE TABLE instance (
   scaley FLOAT,
   scalez FLOAT,
 	mass FLOAT,
+  isSubjectToGravity TINYINT,
+  isStatic TINYINT,
 	FOREIGN KEY(modelID) REFERENCES model (id),
 	FOREIGN KEY(levelID) REFERENCES level (id)
 );

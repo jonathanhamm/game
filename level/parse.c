@@ -1477,7 +1477,7 @@ void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *con
   int i; 
   const bool *isgen;
 
-  emit_code(" INSERT INTO instance(modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass) VALUES\n", &context->instancecode);
+  emit_code(" INSERT INTO instance(modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic) VALUES\n", &context->instancecode);
   for(i = 0; i < instances.size - 1; i++) {
     emit_code(" \t", &context->instancecode);
     emit_instance(levelid, instances.list[i], context);
@@ -1556,6 +1556,24 @@ bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
   }
   CharBuf massbuf = val_to_str(mass);
 
+  tnode_s *isSubjectToGravity = bob_str_map_get(obj, M_KEY("isSubjectToGravity"));
+  CharBuf isSubjectToGravitybuf;
+  if (isSubjectToGravity) {
+    isSubjectToGravitybuf = val_to_str(isSubjectToGravity);
+  } else {
+    char_buf_init(&isSubjectToGravitybuf);
+    char_add_s(&isSubjectToGravitybuf, "0");
+  }
+
+  tnode_s *isStatic = bob_str_map_get(obj, M_KEY("isStatic"));
+  CharBuf isStaticbuf;
+  if (isStatic) {
+    isStaticbuf = val_to_str(isStatic);
+  } else {
+    char_buf_init(&isStaticbuf);
+    char_add_s(&isStaticbuf, "1");
+  }
+
   char *model_name;
   isgen = bob_str_map_get(model->val.obj, OBJ_ISGEN_KEY);
   if (!*isgen) {
@@ -1585,6 +1603,10 @@ bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
   emit_code(scalezbuf.buffer, &context->instancecode);
   emit_code(",", &context->instancecode);
   emit_code(massbuf.buffer, &context->instancecode);
+  emit_code(",", &context->instancecode);
+  emit_code(isSubjectToGravitybuf.buffer, &context->instancecode);
+  emit_code(",", &context->instancecode);
+  emit_code(isStaticbuf.buffer, &context->instancecode);
   emit_code(")", &context->instancecode);
   char_buf_free(&xbuf);
   char_buf_free(&ybuf);
@@ -1593,6 +1615,8 @@ bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
   char_buf_free(&scaleybuf);
   char_buf_free(&scalezbuf);
   char_buf_free(&massbuf);
+  char_buf_free(&isSubjectToGravitybuf);
+  char_buf_free(&isStaticbuf);
 }
 
 bool emit_level(tnode_s *level, p_context_s *context) {
