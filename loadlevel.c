@@ -25,7 +25,7 @@ struct bob_db_s {
 };
 
 const char *level_qstr = 
-  "SELECT modelID, levelID, vx, vy, vz, mass"
+  "SELECT modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass"
   " FROM level AS l JOIN instance AS i"
   " ON l.id=i.levelID"
   " WHERE l.name=?";
@@ -100,7 +100,7 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   log_debug("loading level instances");
 
   int modelID, levelID;
-  double vx, vy ,vz, mass;
+  double vx, vy, vz, scalex, scaley, scalez, mass;
   Instance *inst;
   Model *model;
   pointer_vector_init(&lvl->instances);
@@ -112,7 +112,10 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       vx = sqlite3_column_double(bdb->qlevel, 2);
       vy = sqlite3_column_double(bdb->qlevel, 3);
       vz = sqlite3_column_double(bdb->qlevel, 4);
-      mass = sqlite3_column_double(bdb->qlevel, 5);
+      scalex = sqlite3_column_double(bdb->qlevel, 5);
+      scaley = sqlite3_column_double(bdb->qlevel, 6);
+      scalez = sqlite3_column_double(bdb->qlevel, 7);
+      mass = sqlite3_column_double(bdb->qlevel, 8);
       model = bob_dbload_model(bdb, modelID);
       inst = calloc(1, sizeof *inst);
       if (!inst) {
@@ -123,10 +126,10 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       inst->pos[0] = vx;
       inst->pos[1] = vy;
       inst->pos[2] = vz;
+      inst->scale[0] = scalex;
+      inst->scale[1] = scaley;
+      inst->scale[2] = scalez;
       inst->mass = mass;
-      inst->scale[0] = 0.1;
-      inst->scale[1] = 0.1;
-      inst->scale[2] = 0.1;
       inst->velocity[0] = 0.0;
       inst->velocity[1] = 0.0;
       inst->velocity[2] = 0.0;

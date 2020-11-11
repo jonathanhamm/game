@@ -1,7 +1,7 @@
 #include "camera.h"
 #include "common/errcodes.h"
 
-static const float MAX_VERTICAL_ANGLE = 86.0f;
+static const float MAX_VERTICAL_ANGLE = 85.0f;
 
 static void normalize_angles(Camera *camera);
 
@@ -13,8 +13,9 @@ int camera_init(Camera *camera) {
 	camera->vertical_angle = 0.0;
 	camera->field_of_view = 50.0;
 	camera->near_plane = 0.01f;
-	camera->far_plane = 100.0;
+	camera->far_plane = 500.0;
 	camera->viewport_aspect_ratio = 4.0f/3.0f;
+  camera->gdegrees_rotated = 0.0;
 	return STATUS_OK;
 }
 
@@ -26,7 +27,7 @@ void camera_orientation(Camera *camera, mat4 m) {
 	float vertrad = glm_rad(camera->vertical_angle);
 	float horizrad = glm_rad(camera->horizontal_angle);
 	glm_rotate_make(m, vertrad, (vec3){1.0,0.0,0.0});
-	glm_rotate_make(m, horizrad, (vec3){0.0,1.0,0.0});
+	glm_rotate(m, horizrad, (vec3){0.0,1.0,0.0});
 }
 
 void camera_offset_orientation(Camera *camera, float upAngle, float rightAngle) {
@@ -45,7 +46,7 @@ void camera_lookat(Camera *camera, vec3 position) {
 	asiny = asinf(-direction[1]);
 	atanx = atan2f(-direction[0], -direction[2]);
 	camera->vertical_angle = glm_rad(asiny);
-	camera->horizontal_angle = glm_rad(atanx);
+	camera->horizontal_angle = -glm_rad(atanx);
 	normalize_angles(camera);
 }
 
@@ -54,9 +55,9 @@ void camera_forward(Camera *camera, vec3 result) {
 	mat4 orientation;
 
 	camera_orientation(camera, orientation);
+  glm_mat4_inv(orientation, orientation);
 	glm_mat4_mulv(orientation, (vec4){0,0,-1,1}, forward);
-	glm_vec4_negate(forward);
-	glm_vec4_copy3(forward, result);
+  glm_vec3(forward, result);
 }
 
 void camera_right(Camera *camera, vec3 result) {
@@ -64,9 +65,9 @@ void camera_right(Camera *camera, vec3 result) {
 	mat4 orientation;
 
 	camera_orientation(camera, orientation);
+  glm_mat4_inv(orientation, orientation);
 	glm_mat4_mulv(orientation, (vec4){1,0,0,1}, right);
-	glm_vec4_negate(right);
-	glm_vec4_copy3(right, result);
+  glm_vec3(right, result);
 }
 
 void camera_up(Camera *camera, vec3 result) {
@@ -74,9 +75,9 @@ void camera_up(Camera *camera, vec3 result) {
 	mat4 orientation;
 
 	camera_orientation(camera, orientation);
+  glm_mat4_inv(orientation, orientation);
 	glm_mat4_mulv(orientation, (vec4){0,1,0,1}, up);
-	glm_vec4_negate(up);
-	glm_vec4_copy3(up, result);
+  glm_vec3(up, result);
 }
 
 void camera_pos(Camera *camera, mat4 result) {
@@ -110,7 +111,7 @@ void camera_get_matrix(Camera *camera, mat4 result) {
 
 void camera_projection(Camera *camera, mat4 result) {
 	glm_perspective(
-		camera->field_of_view, 
+		glm_rad(camera->field_of_view), 
 		camera->viewport_aspect_ratio, 
 		camera->near_plane, 
 		camera->far_plane, 

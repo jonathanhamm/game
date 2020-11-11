@@ -13,6 +13,8 @@ struct Camera {
 	float near_plane;
 	float far_plane;
 	float viewport_aspect_ratio;
+  float gdegrees_rotated;
+  float scrolly;
 };
 
 extern int camera_init(Camera *camera);

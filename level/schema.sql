@@ -51,6 +51,9 @@ CREATE TABLE instance (
 	vx FLOAT,
 	vy FLOAT,
 	vz FLOAT,
+  scalex FLOAT,
+  scaley FLOAT,
+  scalez FLOAT,
 	mass FLOAT,
 	FOREIGN KEY(modelID) REFERENCES model (id),
 	FOREIGN KEY(levelID) REFERENCES level (id)

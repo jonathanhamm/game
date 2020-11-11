@@ -12,8 +12,8 @@
 #include <stdio.h>
 
 
-static void level_render(Level *level);
-
+static void level_render(GLFWwindow *window, Level *level);
+static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
 
 static void error_callback(int error, const char* description)
 {
@@ -58,33 +58,53 @@ static void render_instance(Instance *instance, Camera *camera) {
 	glUseProgram(0);
 }
 
-void level_render(Level *level) {
+void level_render(GLFWwindow *window, Level *level) {
 	int i;
 	double currTime = glfwGetTime();
-  static float counter = 0.01;
-  static int bob = 0;
 	float dt = (float)(currTime - level->dt);
-
-  level->camera.pos[2] -= 0.001;
-  if (bob <= 100) {
-    level->camera.pos[0] += counter;
-    level->camera.pos[1] += counter;
-  }
-  else {
-    bob = 0;
-    counter = -counter;
-  }
-  bob++;
-
+  
+  update(window, &level->camera, dt);
 	for (i = 0; i < level->instances.size; i++) {
 		Instance *instance = level->instances.buffer[i];
 		instance_update_position(instance, dt);
-    //printf("instance pos: <%f %f %f>\n", instance->pos[0], instance->pos[1], instance->pos[2]);
 		render_instance(level->instances.buffer[i], &level->camera);
-		//return;
 	}
 
 	level->dt = dt;
+}
+
+void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
+  const GLfloat degreesPerSecond = 180.0f;
+  camera->gdegrees_rotated += secondsElapsed * degreesPerSecond;
+  while(camera->gdegrees_rotated > 360.0f) camera->gdegrees_rotated -= 360.0f;
+  vec3 result;
+  const float moveSpeed = 0.1; //units per second
+  if(glfwGetKey(window, 'S')){
+    camera_forward(camera, result);
+    glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
+    camera_offset_position(camera, result);
+  } 
+  else if(glfwGetKey(window, 'W')){
+    camera_forward(camera, result);
+    glm_vec3_scale(result, secondsElapsed * moveSpeed, result);
+    camera_offset_position(camera, result);
+  }
+  if(glfwGetKey(window, 'A')){
+    camera_right(camera, result);
+    glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
+    camera_offset_position(camera, result);
+  } 
+  else if(glfwGetKey(window, 'D')){
+    camera_right(camera, result);
+    glm_vec3_scale(result, secondsElapsed * moveSpeed, result);
+    camera_offset_position(camera, result);
+  }
+  const float mouseSensitivity = 0.1f;
+  double mouseX, mouseY;
+  
+  glfwGetCursorPos(window, &mouseX, &mouseY);
+  camera_offset_orientation(camera, mouseSensitivity * (float)mouseY, mouseSensitivity * (float)mouseX);
+  glfwSetCursorPos(window, 0, 0); //reset the mouse, so it doesn't go out of the window
 }
 
 void bob_start(void) {
@@ -106,7 +126,7 @@ void bob_start(void) {
 		exit(EXIT_FAILURE);
 	}
 
-	//glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	glfwSetCursorPos(window, 0, 0);
 	//glfwSetScrollCallback(window, onScroll);
 	glfwMakeContextCurrent(window);
@@ -126,6 +146,8 @@ void bob_start(void) {
 	glDepthFunc(GL_LESS);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+
 					
   bob_db_s *bdb = bob_loaddb("level/test.db");
   Level *blvl = bob_loadlevel(bdb, "hello");
@@ -184,7 +206,7 @@ void bob_start(void) {
 		glfwPollEvents();
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		level_render(&level);
+		level_render(window, &level);
 		glfwSwapBuffers(window);
 
 		GLenum error = glGetError();

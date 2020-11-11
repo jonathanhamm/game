@@ -1477,7 +1477,7 @@ void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *con
   int i; 
   const bool *isgen;
 
-  emit_code(" INSERT INTO instance(modelID, levelID, vx, vy, vz, mass) VALUES\n", &context->instancecode);
+  emit_code(" INSERT INTO instance(modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass) VALUES\n", &context->instancecode);
   for(i = 0; i < instances.size - 1; i++) {
     emit_code(" \t", &context->instancecode);
     emit_instance(levelid, instances.list[i], context);
@@ -1519,6 +1519,36 @@ bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
   }
   CharBuf zbuf = val_to_str(vz);
 
+  tnode_s *scalex = bob_str_map_get(obj, M_KEY("scalex"));
+  CharBuf scalexbuf;
+  if (scalex) {
+    scalexbuf = val_to_str(scalex);
+  }
+  else {
+    char_buf_init(&scalexbuf);
+    char_add_s(&scalexbuf, "1.0");
+  }
+
+  tnode_s *scaley = bob_str_map_get(obj, M_KEY("scaley"));
+  CharBuf scaleybuf;
+  if (scaley) {
+    scaleybuf = val_to_str(scaley);
+  }
+  else {
+    char_buf_init(&scaleybuf);
+    char_add_s(&scaleybuf, "1.0");
+  }
+
+  tnode_s *scalez= bob_str_map_get(obj, M_KEY("scalez"));
+  CharBuf scalezbuf;
+  if (scalez) {
+    scalezbuf = val_to_str(scalez);
+  }
+  else {
+    char_buf_init(&scalezbuf);
+    char_add_s(&scalezbuf, "1.0");
+  }
+
   tnode_s *mass = bob_str_map_get(obj, M_KEY("mass"));
   if (!mass) {
     report_semantics_error("Instance missing required 'mass' property", context);
@@ -1548,11 +1578,20 @@ bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
   emit_code(",", &context->instancecode);
   emit_code(zbuf.buffer, &context->instancecode);
   emit_code(",", &context->instancecode);
+  emit_code(scalexbuf.buffer, &context->instancecode);
+  emit_code(",", &context->instancecode);
+  emit_code(scaleybuf.buffer, &context->instancecode);
+  emit_code(",", &context->instancecode);
+  emit_code(scalezbuf.buffer, &context->instancecode);
+  emit_code(",", &context->instancecode);
   emit_code(massbuf.buffer, &context->instancecode);
   emit_code(")", &context->instancecode);
   char_buf_free(&xbuf);
   char_buf_free(&ybuf);
   char_buf_free(&zbuf);
+  char_buf_free(&scalexbuf);
+  char_buf_free(&scaleybuf);
+  char_buf_free(&scalezbuf);
   char_buf_free(&massbuf);
 }
 
