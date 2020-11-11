@@ -173,6 +173,8 @@ void bob_start(void) {
     printf("inst acceleration: <%f %f %f>\n", inst->acceleration[0], inst->acceleration[1], inst->acceleration[2]);
     printf("inst draw: %d %d %d\n", inst->model->drawCount, inst->model->drawStart, inst->model->drawType);
     printf("inst mass: %f\n", inst->mass);
+    printf("inst isStatic: %d\n", inst->isStatic);
+    printf("inst isSubjectToGravity: %d\n", inst->isSubjectToGravity);
     puts("--------------------");
   }
 

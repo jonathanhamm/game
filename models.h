@@ -22,6 +22,8 @@ struct Model {
 struct Instance {
 	Model *model;
 	float mass;
+  bool isSubjectToGravity;
+  bool isStatic;
 	vec3 pos;
 	vec3 velocity;
 	vec3 acceleration;

@@ -25,7 +25,7 @@ struct bob_db_s {
 };
 
 const char *level_qstr = 
-  "SELECT modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass"
+  "SELECT modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic"
   " FROM level AS l JOIN instance AS i"
   " ON l.id=i.levelID"
   " WHERE l.name=?";
@@ -101,6 +101,7 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
 
   int modelID, levelID;
   double vx, vy, vz, scalex, scaley, scalez, mass;
+  bool isSubjectToGravity, isStatic;
   Instance *inst;
   Model *model;
   pointer_vector_init(&lvl->instances);
@@ -116,6 +117,8 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       scaley = sqlite3_column_double(bdb->qlevel, 6);
       scalez = sqlite3_column_double(bdb->qlevel, 7);
       mass = sqlite3_column_double(bdb->qlevel, 8);
+      isSubjectToGravity = sqlite3_column_int(bdb->qlevel, 9);
+      isStatic = sqlite3_column_int(bdb->qlevel, 10);
       model = bob_dbload_model(bdb, modelID);
       inst = calloc(1, sizeof *inst);
       if (!inst) {
@@ -130,6 +133,8 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       inst->scale[1] = scaley;
       inst->scale[2] = scalez;
       inst->mass = mass;
+      inst->isSubjectToGravity = isSubjectToGravity;
+      inst->isStatic = isStatic;
       inst->velocity[0] = 0.0;
       inst->velocity[1] = 0.0;
       inst->velocity[2] = 0.0;
