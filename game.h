@@ -7,9 +7,10 @@
 typedef struct Level Level;
 
 struct Level {
-	float dt;
+	double t0;
 	Camera camera;
 	PointerVector instances;
+  PointerVector gravityObjects;
 };
 
 extern void bob_start(void);

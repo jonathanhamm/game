@@ -105,6 +105,7 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   Instance *inst;
   Model *model;
   pointer_vector_init(&lvl->instances);
+  pointer_vector_init(&lvl->gravityObjects);
   while (1) {
     rc = sqlite3_step(bdb->qlevel);
     if (rc == SQLITE_ROW) {
@@ -117,13 +118,16 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       scaley = sqlite3_column_double(bdb->qlevel, 6);
       scalez = sqlite3_column_double(bdb->qlevel, 7);
       mass = sqlite3_column_double(bdb->qlevel, 8);
-      isSubjectToGravity = sqlite3_column_int(bdb->qlevel, 9);
-      isStatic = sqlite3_column_int(bdb->qlevel, 10);
+      isSubjectToGravity = true;// = sqlite3_column_int(bdb->qlevel, 9);
+      isStatic = false;//= sqlite3_column_int(bdb->qlevel, 10);
       model = bob_dbload_model(bdb, modelID);
       inst = calloc(1, sizeof *inst);
       if (!inst) {
         log_error("failed to allocate memory for instance");
         return NULL;
+      }
+      if (isSubjectToGravity) {
+        pointer_vector_add(&lvl->gravityObjects, inst);
       }
       inst->model = model;
       inst->pos[0] = vx;
@@ -135,12 +139,9 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       inst->mass = mass;
       inst->isSubjectToGravity = isSubjectToGravity;
       inst->isStatic = isStatic;
-      inst->velocity[0] = 0.0;
-      inst->velocity[1] = 0.0;
-      inst->velocity[2] = 0.0;
-      inst->acceleration[0] = 0.0;
-      inst->acceleration[1] = 0.0;
-      inst->acceleration[2] = 0.0;
+      glm_vec3_zero(inst->velocity);
+      glm_vec3_zero(inst->acceleration);
+      glm_vec3_zero(inst->force);
       inst->rotation[0] = 2;
       inst->rotation[1] = 1;
       inst->rotation[0] = 0;

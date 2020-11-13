@@ -27,6 +27,7 @@ struct Instance {
 	vec3 pos;
 	vec3 velocity;
 	vec3 acceleration;
+  vec3 force;
 	vec3 scale;
 	vec3 rotation;
 	PointerVector *collision_space;

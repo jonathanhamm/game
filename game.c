@@ -3,6 +3,7 @@
 #include "meshes.h"
 #include "glprogram.h"
 #include "models.h"
+#include "physics.h"
 #include "loadlevel.h"
 #include <cglm/cglm.h>
 #include <GL/glew.h>
@@ -14,6 +15,7 @@
 
 static void level_render(GLFWwindow *window, Level *level);
 static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
+static Instance *spawn_instance(Level *level);
 
 static void error_callback(int error, const char* description)
 {
@@ -59,18 +61,35 @@ static void render_instance(Instance *instance, Camera *camera) {
 }
 
 void level_render(GLFWwindow *window, Level *level) {
+  static int debounce = 0;
+  static Instance *track;
 	int i;
 	double currTime = glfwGetTime();
-	float dt = (float)(currTime - level->dt);
+	float dt = currTime - level->t0;
   
+  if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !debounce) {
+    track = spawn_instance(level);
+    debounce++;
+  }
+  else if(debounce > 0) {
+    debounce = 0;
+  }
+  else if(debounce) {
+    debounce++;
+  } 
+  if (track) {
+    log_debug("track force %p: <%f,%f,%f>", track, track->force[0], track->force[1], track->force[2]);
+  }
   update(window, &level->camera, dt);
+  phys_compute_gravity(level);
+  phys_update_position(level);
 	for (i = 0; i < level->instances.size; i++) {
 		Instance *instance = level->instances.buffer[i];
-		instance_update_position(instance, dt);
+		//instance_update_position(instance, dt);
 		render_instance(level->instances.buffer[i], &level->camera);
 	}
 
-	level->dt = dt;
+	level->t0 = currTime;
 }
 
 void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
@@ -78,7 +97,7 @@ void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
   camera->gdegrees_rotated += secondsElapsed * degreesPerSecond;
   while(camera->gdegrees_rotated > 360.0f) camera->gdegrees_rotated -= 360.0f;
   vec3 result;
-  const float moveSpeed = 0.1; //units per second
+  const float moveSpeed = 5; //units per second
   if(glfwGetKey(window, 'S')){
     camera_forward(camera, result);
     glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
@@ -105,6 +124,40 @@ void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
   glfwGetCursorPos(window, &mouseX, &mouseY);
   camera_offset_orientation(camera, mouseSensitivity * (float)mouseY, mouseSensitivity * (float)mouseX);
   glfwSetCursorPos(window, 0, 0); //reset the mouse, so it doesn't go out of the window
+  
+}
+
+Instance *spawn_instance(Level *level) {
+  Instance *inst = malloc(sizeof *inst);
+  if (!inst) {
+    log_error("memory error");
+    exit(1);
+  }
+  
+  PointerVector *pv = &level->instances;
+  Instance *template = pv->buffer[0];
+
+  inst->pos[0] = level->camera.pos[0];
+  inst->pos[1] = level->camera.pos[1];
+  inst->pos[2] = level->camera.pos[2];
+  inst->mass = 1E10;
+  inst->scale[0] = 1.0;
+  inst->scale[1] = 1.0;
+  inst->scale[2] = 1.0;
+  inst->rotation[0] = 2;
+  inst->rotation[1] = 0;
+  inst->rotation[2] = 0;
+  inst->isSubjectToGravity = true;
+  inst->isStatic = false;
+  inst->model = template->model;
+
+  glm_vec3_zero(inst->velocity);
+  glm_vec3_zero(inst->acceleration);
+  glm_vec3_zero(inst->force);
+
+  pointer_vector_add(pv, inst);
+  pointer_vector_add(&level->gravityObjects, inst);
+  return inst;
 }
 
 void bob_start(void) {
@@ -153,7 +206,7 @@ void bob_start(void) {
   Level *blvl = bob_loadlevel(bdb, "hello");
 
 	Level level = *blvl;
-	level.dt = glfwGetTime();
+	level.t0 = glfwGetTime();
 	PointerVector pvt = gen_instances_test1();
   
 	camera_init(&level.camera);
