@@ -105,8 +105,6 @@ void phys_update_position(Level *level) {
 void s_phys_compute_point_gravity(vec3 result, Instance *i1, Instance *i2) {
   vec3 diff;
   double r12 = glm_vec3_distance(i2->pos, i1->pos);
-  if (r12 < 1.0E-10)
-    r12 = 1.0E-10;
   double r122 = r12*r12;
   glm_vec3_sub(i2->pos, i1->pos, diff);
   glm_vec3_divs(diff, r12, result);

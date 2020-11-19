@@ -119,7 +119,7 @@ Instance *spawn_instance(Level *level) {
   inst->pos[1] = level->camera.pos[1];
   inst->pos[2] = level->camera.pos[2];
 
-  inst->mass = 1E4;
+  inst->mass = 10;
   inst->scale[0] = 1.0;
   inst->scale[1] = 1.0;
   inst->scale[2] = 1.0;
@@ -137,7 +137,7 @@ Instance *spawn_instance(Level *level) {
 
   phys_impulse_s *imp = phys_impulse_new(0.01);
   camera_forward(&level->camera, imp->force);
-  glm_vec3_scale(imp->force, 1E8, imp->force);
+  glm_vec3_scale(imp->force, 1E4, imp->force);
   phys_add_impulse(inst, imp);
 
   pointer_vector_add(pv, inst);
