@@ -32,6 +32,7 @@ struct Instance {
 	vec3 rotation;
 	PointerVector *collision_space;
 	PointerVector *gravity_space;
+  PointerList *impulse;
 };
 
 extern Model *get_model_test1(void);

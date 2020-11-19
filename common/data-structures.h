@@ -12,6 +12,7 @@
 typedef struct CharBuf CharBuf;
 typedef struct FloatBuf FloatBuf;
 typedef struct PointerVector PointerVector;
+typedef struct PointerList PointerList;
 typedef struct StrMapEntry StrMapEntry;
 typedef struct StrMap StrMap;
 typedef struct IntMapEntry IntMapEntry;
@@ -33,6 +34,11 @@ struct PointerVector {
 	size_t size;
 	size_t buf_size;
 	void **buffer;
+};
+
+struct PointerList {
+  void *ptr;
+  PointerList *next;
 };
 
 struct StrMapEntry {

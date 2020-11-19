@@ -4,6 +4,7 @@
 #include "meshes.h"
 #include "common/errcodes.h"
 #include "common/constants.h"
+#include <assert.h>
 #include <sqlite3.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -44,7 +45,7 @@ const char *shader_qstr =
   " WHERE px.programID=?";
 const char *texture_qstr =
   "SELECT path FROM texture AS t"
-  " WHERE t.id=?;";
+  " WHERE t.id=?";
 
 static sqlite3_stmt *query_level;
 
@@ -61,18 +62,19 @@ bob_db_s *bob_loaddb(const char *path) {
 
   bob_db_s *bdb = malloc(sizeof *bdb);
   if (!bdb) {
-    perror("memory allocation error");
+    log_error("memory allocation error");
     return NULL;
   }
 
   bob_int_map_init(&bdb->models);
   bob_int_map_init(&bdb->shaders);
-  rc = sqlite3_open(path, &bdb->db);
+  rc = sqlite3_open_v2(path, &bdb->db, SQLITE_OPEN_READONLY, NULL);
   if (rc != SQLITE_OK) {
-    perror("error opening database");
+    log_error("error opening database");
     sqlite3_close(bdb->db);
     return NULL;
   }
+
   rc = prepare_queries(bdb);
   if (rc) {
     log_error("Failed to prepare queries");
@@ -84,10 +86,9 @@ bob_db_s *bob_loaddb(const char *path) {
 Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   int rc, i;
 
-
   Level *lvl = malloc(sizeof *lvl);
   if (!lvl) {
-    perror("failed to allocate memory for while loading level");
+    log_error("failed to allocate memory for while loading level");
     return NULL;
   }
 
@@ -106,6 +107,7 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   Model *model;
   pointer_vector_init(&lvl->instances);
   pointer_vector_init(&lvl->gravityObjects);
+
   while (1) {
     rc = sqlite3_step(bdb->qlevel);
     if (rc == SQLITE_ROW) {
@@ -118,8 +120,8 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       scaley = sqlite3_column_double(bdb->qlevel, 6);
       scalez = sqlite3_column_double(bdb->qlevel, 7);
       mass = sqlite3_column_double(bdb->qlevel, 8);
-      isSubjectToGravity = true;// = sqlite3_column_int(bdb->qlevel, 9);
-      isStatic = false;//= sqlite3_column_int(bdb->qlevel, 10);
+      isSubjectToGravity = sqlite3_column_int(bdb->qlevel, 9);
+      isStatic = sqlite3_column_int(bdb->qlevel, 10);
       model = bob_dbload_model(bdb, modelID);
       inst = calloc(1, sizeof *inst);
       if (!inst) {
@@ -129,6 +131,7 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       if (isSubjectToGravity) {
         pointer_vector_add(&lvl->gravityObjects, inst);
       }
+      inst->impulse = NULL;
       inst->model = model;
       inst->pos[0] = vx;
       inst->pos[1] = vy;
@@ -188,6 +191,7 @@ int prepare_queries(bob_db_s *bdb) {
     log_error("failed to prepare texture query");
     return -1;
   }
+  log_info("texture handle: %p", bdb->qtexture);
   return 0;
 }
 
@@ -265,12 +269,11 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
     glBufferData(GL_ARRAY_BUFFER, fbuf.size * sizeof(GLfloat), fbuf.buffer, GL_STATIC_DRAW);
 
     int i; 
-    for (i = 0; i < TEST_MESH1_SIZE/sizeof(GLfloat); i++) {
+    /* for (i = 0; i < TEST_MESH1_SIZE/sizeof(GLfloat); i++) {
       if (fbuf.buffer[i] != test_mesh1[i]) {
         log_error("------------meshes differ %f vs %f!-----------", fbuf.buffer[i], test_mesh1[i]);
       }
-    }
-
+    } */
 
     handle = gl_shader_attrib(m->program, "vert");
     glEnableVertexAttribArray(handle);
@@ -351,7 +354,7 @@ int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID) {
 
   rc = sqlite3_bind_int(bdb->qtexture, 1, textureID);
   if (rc != SQLITE_OK) {
-    log_error("failed to bind textureID parameter to texture query");
+    log_error("failed to bind textureID parameter to texture query %d", rc);
     return -1;
   }
   rc = sqlite3_step(bdb->qtexture);
@@ -374,7 +377,7 @@ int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID) {
     log_error("Database in invalid format");
     return -1;
   }
-  sqlite3_reset(bdb->qshader);
+  sqlite3_reset(bdb->qtexture);
   return 0;
 }
 

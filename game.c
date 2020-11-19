@@ -71,22 +71,23 @@ void level_render(GLFWwindow *window, Level *level) {
     track = spawn_instance(level);
     debounce++;
   }
-  else if(debounce > 0) {
+  else if(debounce > 10) {
     debounce = 0;
   }
   else if(debounce) {
     debounce++;
   } 
   if (track) {
-    log_debug("track force %p: <%f,%f,%f>", track, track->force[0], track->force[1], track->force[2]);
+    //log_debug("track force %p: <%f,%f,%f>", track, track->force[0], track->force[1], track->force[2]);
   }
   update(window, &level->camera, dt);
-  phys_compute_gravity(level);
+  phys_compute_force(level);
   phys_update_position(level);
 	for (i = 0; i < level->instances.size; i++) {
 		Instance *instance = level->instances.buffer[i];
 		//instance_update_position(instance, dt);
 		render_instance(level->instances.buffer[i], &level->camera);
+    glm_vec3_zero(instance->force);
 	}
 
 	level->t0 = currTime;
@@ -140,7 +141,8 @@ Instance *spawn_instance(Level *level) {
   inst->pos[0] = level->camera.pos[0];
   inst->pos[1] = level->camera.pos[1];
   inst->pos[2] = level->camera.pos[2];
-  inst->mass = 1E10;
+
+  inst->mass = 1E4;
   inst->scale[0] = 1.0;
   inst->scale[1] = 1.0;
   inst->scale[2] = 1.0;
@@ -150,10 +152,16 @@ Instance *spawn_instance(Level *level) {
   inst->isSubjectToGravity = true;
   inst->isStatic = false;
   inst->model = template->model;
+  inst->impulse = NULL;
 
   glm_vec3_zero(inst->velocity);
   glm_vec3_zero(inst->acceleration);
   glm_vec3_zero(inst->force);
+
+  phys_impulse_s *imp = phys_impulse_new(1.5);
+  camera_forward(&level->camera, imp->force);
+  glm_vec3_scale(imp->force, 1E7, imp->force);
+  phys_add_impulse(inst, imp);
 
   pointer_vector_add(pv, inst);
   pointer_vector_add(&level->gravityObjects, inst);
@@ -200,9 +208,10 @@ void bob_start(void) {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-
 					
   bob_db_s *bdb = bob_loaddb("level/test.db");
+
+  perror("start 1");
   Level *blvl = bob_loadlevel(bdb, "hello");
 
 	Level level = *blvl;

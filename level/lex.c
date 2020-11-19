@@ -170,6 +170,12 @@ toklist_s lex(const char *file_name) {
 						fptr++;
 						if (isdigit(*fptr)) {
 							while (isdigit(*++fptr));	
+              if (*fptr == 'e' || *fptr == 'E') {
+                fptr++;
+                if (*fptr == '-' || *fptr == '+')
+                  fptr++;
+                while(isdigit(*++fptr));
+              }
 							bck = *fptr;	
 							*fptr = '\0';
 							add_token(&list, bptr, fptr - bptr, lineno, TOK_FLOAT);
@@ -179,7 +185,18 @@ toklist_s lex(const char *file_name) {
 							report_lexical_error("invalid number form", *fptr, lineno);
 							fptr++;
 						}
-					} 
+					} else if (*fptr == 'e' || *fptr == 'E') {
+            fptr++;
+            if (*fptr == '-' || *fptr == '+')
+              fptr++;
+            if (isdigit(*fptr)) {
+							while (isdigit(*++fptr));	
+							bck = *fptr;	
+							*fptr = '\0';
+							add_token(&list, bptr, fptr - bptr, lineno, TOK_FLOAT);
+							*fptr = bck;
+            }
+          }
 					else {
 						bck = *fptr;	
 						*fptr = '\0';
