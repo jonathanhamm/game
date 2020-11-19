@@ -42,12 +42,12 @@ void phys_compute_point_gravity(Level *level) {
 
   for (i = 0; i < pv->size; i++) {
     Instance *i1 = pv->buffer[i];
-    for (j = 0; j < pv->size; j++) {
-      if (i == j)
-        continue;
+    for (j = i + 1; j < pv->size; j++) {
       Instance *i2 = pv->buffer[j];
       s_phys_compute_point_gravity(gvec, i1, i2);
       glm_vec3_add(i1->force, gvec, i1->force);
+      glm_vec3_negate(gvec);
+      glm_vec3_add(i2->force, gvec, i2->force);
     }
   }
 }
@@ -93,6 +93,7 @@ void phys_update_position(Level *level) {
     Instance *inst = pv->buffer[i];
     if (!inst->isStatic) {
       glm_vec3_divs(inst->force, inst->mass, inst->acceleration);
+      glm_vec3_zero(inst->force);
       glm_vec3_scale(inst->acceleration, dt, accum);
       glm_vec3_add(inst->velocity, accum, inst->velocity);
       glm_vec3_scale(inst->velocity, dt, accum);

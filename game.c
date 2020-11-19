@@ -61,36 +61,13 @@ static void render_instance(Instance *instance, Camera *camera) {
 }
 
 void level_render(GLFWwindow *window, Level *level) {
-  static int debounce = 0;
-  static Instance *track;
 	int i;
-	double currTime = glfwGetTime();
-	float dt = currTime - level->t0;
   
-  if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !debounce) {
-    track = spawn_instance(level);
-    debounce++;
-  }
-  else if(debounce > 10) {
-    debounce = 0;
-  }
-  else if(debounce) {
-    debounce++;
-  } 
-  if (track) {
-    //log_debug("track force %p: <%f,%f,%f>", track, track->force[0], track->force[1], track->force[2]);
-  }
-  update(window, &level->camera, dt);
-  phys_compute_force(level);
-  phys_update_position(level);
 	for (i = 0; i < level->instances.size; i++) {
 		Instance *instance = level->instances.buffer[i];
-		//instance_update_position(instance, dt);
 		render_instance(level->instances.buffer[i], &level->camera);
-    glm_vec3_zero(instance->force);
 	}
 
-	level->t0 = currTime;
 }
 
 void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
@@ -158,9 +135,9 @@ Instance *spawn_instance(Level *level) {
   glm_vec3_zero(inst->acceleration);
   glm_vec3_zero(inst->force);
 
-  phys_impulse_s *imp = phys_impulse_new(1.5);
+  phys_impulse_s *imp = phys_impulse_new(0.01);
   camera_forward(&level->camera, imp->force);
-  glm_vec3_scale(imp->force, 1E7, imp->force);
+  glm_vec3_scale(imp->force, 1E8, imp->force);
   phys_add_impulse(inst, imp);
 
   pointer_vector_add(pv, inst);
@@ -175,6 +152,8 @@ void bob_start(void) {
 	GlProgram program;
 	GLuint vertex_buffer;
 	GLint mvp_location, vpos_location, vcol_location;
+
+  static int debounce = 0;
 
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
@@ -199,7 +178,7 @@ void bob_start(void) {
 	// NOTE: OpenGL error checks have been omitted for brevity
 
 	if(glewInit() != GLEW_OK) {
-		puts("Error Initializing glew environment");
+		log_error("Error Initializing glew environment");
 	}
 	while(glGetError() != GL_NO_ERROR) {}
 
@@ -220,27 +199,6 @@ void bob_start(void) {
   
 	camera_init(&level.camera);
 
-  int i;
-  for (i = 0; i < level.instances.size; i++) {
-    Instance *inst = (Instance *)level.instances.buffer[i];
-    Model *model = ((Instance *)pvt.buffer[0])->model;
-    //inst->model->vbo = model->vbo;
-    //inst->model->vao = model->vao;
-    printf("inst pos: <%f %f %f>\n", inst->pos[0], inst->pos[1], inst->pos[2]);
-    printf("inst scale: <%f %f %f>\n", inst->scale[0], inst->scale[1], inst->scale[2]);
-    printf("inst model texture: %d\n", inst->model->texture->handle);
-    printf("inst program: %d\n", inst->model->program->handle);
-    printf("inst vbo and vao: %d %d\n", inst->model->vbo, inst->model->vao);
-    printf("inst velocity: <%f %f %f>\n", inst->velocity[0], inst->velocity[1], inst->velocity[2]);
-    printf("inst acceleration: <%f %f %f>\n", inst->acceleration[0], inst->acceleration[1], inst->acceleration[2]);
-    printf("inst draw: %d %d %d\n", inst->model->drawCount, inst->model->drawStart, inst->model->drawType);
-    printf("inst mass: %f\n", inst->mass);
-    printf("inst isStatic: %d\n", inst->isStatic);
-    printf("inst isSubjectToGravity: %d\n", inst->isSubjectToGravity);
-    puts("--------------------");
-  }
-
-
   GLenum glError = glGetError();
   if (glError != GL_NO_ERROR) {
     log_error("glerror: %d", glError);
@@ -250,26 +208,28 @@ void bob_start(void) {
   }
 
 	while (!glfwWindowShouldClose(window)) {
-		//float ratio;
-		//int width, height;
-		//mat4 m = GLM_MAT4_IDENTITY_INIT, p, mvp;
-
-		//glfwGetFramebufferSize(window, &width, &height);
-		//ratio = width / (float) height;
-		//glViewport(0, 100, width, height);
-		//glClear(GL_COLOR_BUFFER_BIT);
-		//mat4x4_rotate_Z(m, m, (float) glfwGetTime());
-		//mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
-		//glm_ortho(-1.f, 1.f, 1.f, -1.f, -ratio, ratio, p);
-		//mat4x4_mul(mvp, p, m);
-	//	glm_mat4_mul(p, m, mvp);
-	//	glUseProgram(program.handle);
-	//	glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
-	//	glDrawArrays(GL_TRIANGLES, 0, 3);
-	//	glfwSwapBuffers(window);
 		glfwPollEvents();
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !debounce) {
+      spawn_instance(&level);
+      debounce++;
+    }
+    else if(debounce > 10) {
+      debounce = 0;
+    }
+    else if(debounce) {
+      debounce++;
+    } 
+
+    double currTime = glfwGetTime();
+    float dt = currTime - level.t0;
+
+    update(window, &level.camera, dt);
+    phys_compute_force(&level);
+    phys_update_position(&level);
+
 		level_render(window, &level);
 		glfwSwapBuffers(window);
 
@@ -278,6 +238,8 @@ void bob_start(void) {
 			log_error("OpenGL Error: %d %d", error);
 			exit(1);
 		}
+
+    level.t0 = currTime;
 	}
 	glfwDestroyWindow(window);
 	glfwTerminate();
