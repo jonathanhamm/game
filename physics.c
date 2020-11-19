@@ -6,6 +6,7 @@
 
 const double GRAV_G = 6.67430E-11;
 
+static void s_phys_compute_point_gravity_instances(Level *level);
 static void s_phys_compute_point_gravity(vec3 result, Instance *i1, Instance *i2);
 static void s_phys_compute_impulse(Level *level);
 
@@ -31,11 +32,11 @@ void phys_add_impulse(Instance *inst, phys_impulse_s *impulse) {
 }
 
 void phys_compute_force(Level *level) {
-  phys_compute_point_gravity(level);
+  s_phys_compute_point_gravity_instances(level);
   s_phys_compute_impulse(level);
 }
 
-void phys_compute_point_gravity(Level *level) {
+void s_phys_compute_point_gravity_instances(Level *level) {
   size_t i, j;
   vec3 gvec;
   PointerVector *pv = &level->gravityObjects;
@@ -94,6 +95,7 @@ void phys_update_position(Level *level) {
     if (!inst->isStatic) {
       glm_vec3_divs(inst->force, inst->mass, inst->acceleration);
       glm_vec3_zero(inst->force);
+      glm_vec3_add(inst->acceleration, level->ambient_gravity, inst->acceleration);
       glm_vec3_scale(inst->acceleration, dt, accum);
       glm_vec3_add(inst->velocity, accum, inst->velocity);
       glm_vec3_scale(inst->velocity, dt, accum);

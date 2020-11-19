@@ -98,6 +98,10 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
     return NULL;
   }
 
+  lvl->ambient_gravity[0] = 0.0;
+  lvl->ambient_gravity[1] = 0.0;
+  lvl->ambient_gravity[2] = -9.81;
+
   log_debug("loading level instances");
 
   int modelID, levelID;

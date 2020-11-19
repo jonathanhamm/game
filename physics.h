@@ -14,7 +14,6 @@ struct phys_impulse_s {
 extern phys_impulse_s *phys_impulse_new(double dt);
 extern void phys_add_impulse(Instance *inst, phys_impulse_s *impulse);
 extern void phys_compute_force(Level *level);
-extern void phys_compute_point_gravity(Level *level);
 extern void phys_update_position(Level *level);
 
 #endif

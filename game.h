@@ -9,6 +9,7 @@ typedef struct Level Level;
 struct Level {
 	double t0;
 	Camera camera;
+  vec3 ambient_gravity;
 	PointerVector instances;
   PointerVector gravityObjects;
 };
