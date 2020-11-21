@@ -64,6 +64,9 @@ CREATE TABLE instance (
 CREATE TABLE level (
 	id INTEGER,
 	name TEXT,
+  ambientGravityX FLOAT,
+  ambientGravityY FLOAT,
+  ambientGravityZ FLOAT,
 	PRIMARY KEY(id)
 );
 

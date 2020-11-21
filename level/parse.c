@@ -1629,13 +1629,69 @@ bool emit_level(tnode_s *level, p_context_s *context) {
   char *raw_name = name_node->val.s;
   char *table_name = strip_quotes(raw_name);
 
+  tnode_s *n_agx, *n_agy, *n_agz;
+  tnode_s *ambient_gravity_node = bob_str_map_get(level->val.obj, M_KEY("ambientGravity"));
+  if (ambient_gravity_node) {
+    if (ambient_gravity_node->type == PTYPE_ARRAY) {
+      tnode_list_s ambient_gravity_array = ambient_gravity_node->val.atval.arr;
+      if (ambient_gravity_array.size == 3) {
+        tnode_s **glist = ambient_gravity_array.list;
+        n_agx = glist[0];
+        if (n_agx->type != PTYPE_INT && n_agx->type != PTYPE_FLOAT) {
+          report_semantics_error("Ambient Gravity x-component is not a numeric type", context);
+          return false;
+        }
+        n_agy = glist[1];
+        if (n_agy->type != PTYPE_INT && n_agy->type != PTYPE_FLOAT) {
+          report_semantics_error("Ambient Gravity y-component is not a numeric type", context);
+          return false;
+        }
+        n_agz = glist[2];
+        if (n_agz->type != PTYPE_INT && n_agz->type != PTYPE_FLOAT) {
+          report_semantics_error("Ambient Gravity z-component is not a numeric type", context);
+          return false;
+        }
+      } 
+      else {
+        report_semantics_error("ambientGravity must be an array with 3 elements", context);
+        return false;
+      }
+    } 
+    else {
+      report_semantics_error("ambientGravity must be of type array", context);
+      return false;
+    }
+  } else {
+    n_agx = NULL;
+    n_agy = NULL;
+    n_agz = NULL;
+  }
+
+
   emit_code("--------------------------------------------------------------------------------\n", &context->levelcode);
   emit_code("-- GENERATING LEVEL: ", &context->levelcode);
   emit_code(raw_name, &context->levelcode);
   emit_code("\n", &context->levelcode);
   emit_code("--------------------------------------------------------------------------------\n", &context->levelcode);
-  emit_code(" INSERT INTO level(name) VALUES(", &context->levelcode);
+  emit_code(" INSERT INTO level(name,ambientGravityX,ambientGravityY,ambientGravityZ) VALUES(", &context->levelcode);
   emit_code(raw_name, &context->levelcode);
+  emit_code(",", &context->levelcode);
+  if (n_agx == NULL) {
+    emit_code("0,0,0", &context->levelcode);
+  }
+  else {
+    CharBuf agx = val_to_str(n_agx);
+    CharBuf agy = val_to_str(n_agy);
+    CharBuf agz = val_to_str(n_agz);
+    emit_code(agx.buffer, &context->levelcode);
+    emit_code(",", &context->levelcode);
+    emit_code(agy.buffer, &context->levelcode);
+    emit_code(",", &context->levelcode);
+    emit_code(agz.buffer, &context->levelcode);
+    char_buf_free(&agx);
+    char_buf_free(&agy);
+    char_buf_free(&agz);
+  }
   emit_code(");\n", &context->levelcode);
   emit_code(" CREATE TEMP TABLE ", &context->levelcode);
   emit_code(table_name, &context->levelcode);

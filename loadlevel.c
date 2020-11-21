@@ -16,6 +16,7 @@
 
 struct bob_db_s {
   sqlite3 *db;
+  sqlite3_stmt *qambientgravity;
   sqlite3_stmt *qlevel;
   sqlite3_stmt *qmodel;
   sqlite3_stmt *qmesh;
@@ -25,6 +26,10 @@ struct bob_db_s {
   IntMap shaders;
 };
 
+const char *level_ambient_gravity_qstr =
+  "SELECT ambientGravityX, ambientGravityY, ambientGravityZ"
+  " FROM level"
+  " WHERE name=?";
 const char *level_qstr = 
   "SELECT modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic"
   " FROM level AS l JOIN instance AS i"
@@ -50,6 +55,7 @@ const char *texture_qstr =
 static sqlite3_stmt *query_level;
 
 static int prepare_queries(bob_db_s *bdb);
+static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name);
 static Model *bob_dbload_model(bob_db_s *bdb, int modelID);
 static void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID);
 static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
@@ -92,15 +98,15 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
     return NULL;
   }
 
+  rc = bob_dbload_ambient_gravity(lvl, bdb, name);
+  if (rc < 0)
+    return NULL;
+
   rc = sqlite3_bind_text(bdb->qlevel, 1, name, -1, NULL);
   if (rc != SQLITE_OK) {
     log_error("failed to bind level name parameter to level query");
     return NULL;
   }
-
-  lvl->ambient_gravity[0] = 0.0;
-  lvl->ambient_gravity[1] = 0.0;
-  lvl->ambient_gravity[2] = -9.81;
 
   log_debug("loading level instances");
 
@@ -111,7 +117,6 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   Model *model;
   pointer_vector_init(&lvl->instances);
   pointer_vector_init(&lvl->gravityObjects);
-
   while (1) {
     rc = sqlite3_step(bdb->qlevel);
     if (rc == SQLITE_ROW) {
@@ -152,7 +157,6 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
       inst->rotation[0] = 2;
       inst->rotation[1] = 1;
       inst->rotation[0] = 0;
-      log_info("loaded <%f,%f,%f>", vx, vy, vz);
       pointer_vector_add(&lvl->instances, inst);
     }
     else if (rc == SQLITE_DONE) {
@@ -167,9 +171,45 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   return lvl;
 }
 
+int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name) {
+  int rc;
+  double agx, agy, agz;
+
+  log_debug("loading ambient gravity");
+
+  rc = sqlite3_bind_text(bdb->qambientgravity, 1, name, -1, NULL);
+  if (rc != SQLITE_OK) {
+    log_error("failed to bind level name parameter to level query");
+    return -1;
+  }
+  rc = sqlite3_step(bdb->qambientgravity);
+  if (rc == SQLITE_ROW) {
+    agx = sqlite3_column_double(bdb->qambientgravity, 0);
+    agy = sqlite3_column_double(bdb->qambientgravity, 1);
+    agz = sqlite3_column_double(bdb->qambientgravity, 2);
+    lvl->ambient_gravity[0] = agx;
+    lvl->ambient_gravity[1] = agy;
+    lvl->ambient_gravity[2] = agz;
+  }
+  else {
+    log_error("Databse error occurred during ambient gravity query.");
+    return -1;
+  }
+  rc = sqlite3_step(bdb->qambientgravity);
+  if (rc != SQLITE_DONE) {
+    log_error("Database in invalid format at ambient gravity query.");
+    return -1;
+  }
+}
+
 int prepare_queries(bob_db_s *bdb) {
   int rc;
 
+  rc = sqlite3_prepare_v2(bdb->db, level_ambient_gravity_qstr, -1, &bdb->qambientgravity, 0);
+  if (rc != SQLITE_OK) {
+    log_error("failed to prepare ambientGravity query");
+    return -1;
+  }
   rc = sqlite3_prepare_v2(bdb->db, level_qstr, -1, &bdb->qlevel, 0);
   if (rc != SQLITE_OK) {
     log_error("failed to prepare level query");
@@ -271,13 +311,6 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
     glBindVertexArray(m->vao);
     glBindBuffer(GL_ARRAY_BUFFER, m->vbo);
     glBufferData(GL_ARRAY_BUFFER, fbuf.size * sizeof(GLfloat), fbuf.buffer, GL_STATIC_DRAW);
-
-    int i; 
-    /* for (i = 0; i < TEST_MESH1_SIZE/sizeof(GLfloat); i++) {
-      if (fbuf.buffer[i] != test_mesh1[i]) {
-        log_error("------------meshes differ %f vs %f!-----------", fbuf.buffer[i], test_mesh1[i]);
-      }
-    } */
 
     handle = gl_shader_attrib(m->program, "vert");
     glEnableVertexAttribArray(handle);
