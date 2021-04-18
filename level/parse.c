@@ -105,10 +105,14 @@ static char *make_label(p_context_s *context, char *prefix);
 static void tnode_list_init(tnode_list_s *list);
 static int tnode_list_add(tnode_list_s *list, tnode_s *node);
 static void emit_code(const char *code, CharBuf *segment);
-static void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *context);
-static bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context);
-static bool emit_level(tnode_s *level, p_context_s *context);
-static bool emit_instances(tnode_s *level, char *levelid, p_context_s *context);
+static void emit_instance_batch(p_context_s *context, char *levelid, tnode_list_s instances);
+static void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s instances);
+static bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance);
+static bool emit_level(p_context_s *context, tnode_s *level);
+static bool emit_instance_data(p_context_s *context, tnode_s *level, char *levelid);
+static bool emit_instances(p_context_s *context, char *levelid, tnode_s *instances);
+static bool emit_instance_planes(p_context_s *context, char *levelid, tnode_s *instance_planes);
+static bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_plane);
 static bool emit_model(tnode_s *model, p_context_s *context);
 static bool emit_mesh(tnode_s *mesh, p_context_s *context);
 static bool emit_program(tnode_s *program, p_context_s *context);
@@ -139,6 +143,7 @@ p_context_s parse(toklist_s *list) {
   char_buf_init(&context.modelcode);
   char_buf_init(&context.levelcode);
   char_buf_init(&context.instancecode);
+  char_buf_init(&context.instanceplanecode);
   bob_str_map_init(&context.symtable);
   header = parse_header(&context);
   body = parse_body(&context);
@@ -244,6 +249,7 @@ void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist) {
     case TOK_MESH_DEC:
     case TOK_MODEL_DEC:
     case TOK_INSTANCE_DEC:
+    case TOK_INSTANCE_PLANE_DEC:
     case TOK_LEVEL_DEC:
     case TOK_INT_DEC:
     case TOK_FLOAT_DEC:
@@ -307,7 +313,7 @@ tnode_s *parse_declaration(p_context_s *context) {
           report_semantics_error("Type Error", context);
         }
         else if(typenode->type == PTYPE_LEVEL_DEC) {
-          emit_level(symnode->node, context);				
+          emit_level(context, symnode->node);				
         }
         else {
           //printf("typenode type: %d\n", typenode->type);
@@ -385,6 +391,9 @@ tnode_s *parse_basic_type(p_context_s *context) {
       break;
     case TOK_INSTANCE_DEC:
       type = PTYPE_INSTANCE_DEC;
+      break;
+    case TOK_INSTANCE_PLANE_DEC:
+      type = PTYPE_INSTANCE_PLANE_DEC;
       break;
     case TOK_INT_DEC:
       type = PTYPE_INT_DEC;
@@ -821,6 +830,8 @@ bool typecheck_basic_assignment(p_context_s *context, p_nodetype_e declared, p_n
       return expression == PTYPE_OBJECT || expression == PTYPE_MODEL;
     case PTYPE_INSTANCE_DEC:
       return expression == PTYPE_OBJECT || expression == PTYPE_INSTANCE;
+    case PTYPE_INSTANCE_PLANE_DEC:
+      return expression == PTYPE_OBJECT || expression == PTYPE_INSTANCE_PLANE;
     case PTYPE_INT_DEC:
       return expression == PTYPE_INT;
     case PTYPE_FLOAT_DEC:
@@ -928,6 +939,13 @@ p_nodetype_e resolve_array_type(tnode_list_s list) {
           else
             return PTYPE_ANY;
         }
+      case PTYPE_INSTANCE_PLANE:
+        if (type_i != PTYPE_INSTANCE_PLANE) {
+          if (type_i == PTYPE_OBJECT)
+            type = PTYPE_OBJECT;
+          else
+            return PTYPE_ANY;
+        }
       case PTYPE_OBJECT:
         switch (type_i) {
           case PTYPE_SHADER:
@@ -936,6 +954,7 @@ p_nodetype_e resolve_array_type(tnode_list_s list) {
           case PTYPE_MESH:
           case PTYPE_MODEL:
           case PTYPE_INSTANCE:
+          case PTYPE_INSTANCE_PLANE:
           case PTYPE_OBJECT:
           case PTYPE_LEVEL:
             break;
@@ -1150,6 +1169,7 @@ tnode_s *exec_access_obj(tnode_s *obj, char *key) {
     case PTYPE_TEXTURE:
     case PTYPE_PROGRAM:
     case PTYPE_INSTANCE:
+    case PTYPE_INSTANCE_PLANE:
     case PTYPE_OBJECT:
     case PTYPE_LEVEL:
       break;
@@ -1180,6 +1200,7 @@ tnode_s *exec_access_arr(tnode_s *arr, tnode_s *index) {
     case PTYPE_TEXTURE:
     case PTYPE_PROGRAM:
     case PTYPE_INSTANCE:
+    case PTYPE_INSTANCE_PLANE:
     case PTYPE_OBJECT:
     case PTYPE_LEVEL:
       if (index->type != PTYPE_STRING) {
@@ -1473,22 +1494,35 @@ void emit_code(const char *code, CharBuf *segment) {
   char_add_s(segment, code);
 }
 
-void emit_instance_batch(char *levelid, tnode_list_s instances, p_context_s *context) {
+void emit_instance_batch(p_context_s *context, char *levelid, tnode_list_s instances) {
   int i; 
   const bool *isgen;
 
   emit_code(" INSERT INTO instance(modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic) VALUES\n", &context->instancecode);
-  for(i = 0; i < instances.size - 1; i++) {
+  for (i = 0; i < instances.size - 1; i++) {
     emit_code(" \t", &context->instancecode);
-    emit_instance(levelid, instances.list[i], context);
+    emit_instance(context, levelid, instances.list[i]);
     emit_code(",\n", &context->instancecode);
   }
   emit_code(" \t", &context->instancecode);
-  emit_instance(levelid, instances.list[i], context);
+  emit_instance(context, levelid, instances.list[i]);
   emit_code("\n", &context->instancecode);
 }
 
-bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
+void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s instances) {
+  int i;
+  const bool *isgen;
+
+  emit_code(" INSERT INTO instance_plane(modelID, levelID, v1x, v1y, v1z, v1n, v2x, v2y, v2z, v2n) VALUES\n",
+      &context->instanceplanecode);
+  for (i = 0; i < instances.size - 1; i++) {
+    emit_code(" \t", &context->instanceplanecode); 
+    emit_instance_plane(context, levelid, instances.list[i]);
+    emit_code(",\n", &context->instanceplanecode); 
+  }
+}
+
+bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance) {
   bool *isgen;
   StrMap *obj = instance->val.obj;
   tnode_s *model = bob_str_map_get(obj, M_KEY("model"));
@@ -1619,7 +1653,7 @@ bool emit_instance(char *levelid, tnode_s *instance, p_context_s *context) {
   char_buf_free(&isStaticbuf);
 }
 
-bool emit_level(tnode_s *level, p_context_s *context) {
+bool emit_level(p_context_s *context, tnode_s *level) {
   bool result;
   tnode_s *name_node = bob_str_map_get(level->val.obj, M_KEY("name"));
   if (!name_node) {
@@ -1700,7 +1734,7 @@ bool emit_level(tnode_s *level, p_context_s *context) {
   emit_code(table_name, &context->levelcode);
   emit_code("(id) VALUES (last_insert_rowid());\n", &context->levelcode);
   emit_code("----------------------------------------------------------------------------------\n", &context->levelcode); 
-  result = emit_instances(level, table_name, context);
+  result = emit_instance_data(context, level, table_name);
   free(table_name);
   return result;
 }
@@ -2018,19 +2052,47 @@ bool emit_texture(tnode_s *texture, p_context_s *context) {
   return true;
 }
 
-bool emit_instances(tnode_s *level, char *levelid, p_context_s *context) {
+bool emit_instance_data(p_context_s *context, tnode_s *level, char *levelid) {
   tnode_s *instances = bob_str_map_get(level->val.obj, M_KEY("instances"));
-  if (!instances) {
-    report_semantics_error("Instances are null", context);
+  if (instances) {
+    emit_instances(context, levelid, instances);
+  }
+  tnode_s *instance_planes = bob_str_map_get(level->val.obj, M_KEY("instancePlanes"));
+  if (instance_planes) {
+    emit_instance_planes(context, levelid, instance_planes);
+  }
+  if (!instances && !instance_planes) {
+    report_semantics_error("Level must at least have an instances or instancePlanes array", context);
     return false;
   }
+}
+
+bool emit_instances(p_context_s *context, char *levelid, tnode_s *instances) {
+  //TODO: check if array type
   tnode_arraytype_val_s atval = instances->val.atval;
   if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE) {
-    emit_instance_batch(levelid, atval.arr, context);
+    emit_instance_batch(context, levelid, atval.arr);
   }
   else {
     report_semantics_error("Instances must be an array of objects or instance types", context);
+    return false;
   }
+  return true;
+}
+
+bool emit_instance_planes(p_context_s *context, char *levelid, tnode_s *instance_planes) {
+  tnode_arraytype_val_s atval = instance_planes->val.atval;
+  if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE_PLANE) {
+    emit_instance_plane_batch(context, levelid, atval.arr);
+  }
+  else {
+    report_semantics_error("instancePlanes must be an array of objects or instance plane types", context);
+    return false;
+  }
+  return true;
+}
+
+bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_plane) {
   return true;
 }
 

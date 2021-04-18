@@ -61,6 +61,21 @@ CREATE TABLE instance (
 	FOREIGN KEY(levelID) REFERENCES level (id)
 );
 
+CREATE TABLE instance_plane (
+  modelID INTEGER,
+  levelID INTEGER,
+  v1x FLOAT,
+  v1y FLOAT,
+  v1z FLOAT,
+  v1n INTEGER,
+  v2x FLOAT,
+  v2y FLOAT,
+  v2z FLOAT,
+  v2n INTEGER,
+  FOREIGN KEY(modelID) REFERENCES model (id),
+	FOREIGN KEY(levelID) REFERENCES level (id)
+);
+
 CREATE TABLE level (
 	id INTEGER,
 	name TEXT,

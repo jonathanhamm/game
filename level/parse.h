@@ -23,6 +23,7 @@ enum p_nodetype_e {
 	PTYPE_MESH,
 	PTYPE_MODEL,
 	PTYPE_INSTANCE,
+  PTYPE_INSTANCE_PLANE,
 	PTYPE_OBJECT,
 	PTYPE_ARRAY,
 	PTYPE_LEVEL,
@@ -34,6 +35,7 @@ enum p_nodetype_e {
 	PTYPE_MESH_DEC,
 	PTYPE_MODEL_DEC,
 	PTYPE_INSTANCE_DEC,
+  PTYPE_INSTANCE_PLANE_DEC,
 	PTYPE_INT_DEC,
 	PTYPE_FLOAT_DEC,
 	PTYPE_DICT_DEC,
@@ -57,6 +59,7 @@ struct p_context_s {
   CharBuf modelcode;
 	CharBuf levelcode;
   CharBuf instancecode;
+  CharBuf instanceplanecode;
 };
 
 struct tnode_list_s {
