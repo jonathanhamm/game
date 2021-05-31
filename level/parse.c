@@ -1506,7 +1506,7 @@ void emit_instance_batch(p_context_s *context, char *levelid, tnode_list_s insta
   }
   emit_code(" \t", &context->instancecode);
   emit_instance(context, levelid, instances.list[i]);
-  emit_code("\n", &context->instancecode);
+  emit_code(";\n", &context->instancecode);
 }
 
 void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s instances) {
@@ -1522,7 +1522,7 @@ void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s
   }
   emit_code(" \t", &context->instanceplanecode); 
   emit_instance_plane(context, levelid, instances.list[i]);
-  emit_code("\n", &context->instanceplanecode); 
+  emit_code(";\n", &context->instanceplanecode); 
 }
 
 bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance) {
@@ -2171,27 +2171,27 @@ bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_
     return false;
   }
 
-  emit_code("((SELECT id FROM ", &context->instancecode);
-  emit_code(model_name, &context->instancecode);
-  emit_code("),(SELECT id FROM ", &context->instancecode);
-  emit_code(levelid, &context->instancecode);
-  emit_code("),", &context->instancecode);
-  emit_code(x1buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
-  emit_code(y1buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
-  emit_code(z1buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
-  emit_code(n1buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
-  emit_code(x2buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
-  emit_code(y2buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
-  emit_code(z2buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
-  emit_code(n2buf.buffer, &context->instancecode);
-  emit_code(",", &context->instancecode);
+  emit_code("((SELECT id FROM ", &context->instanceplanecode);
+  emit_code(model_name, &context->instanceplanecode);
+  emit_code("),(SELECT id FROM ", &context->instanceplanecode);
+  emit_code(levelid, &context->instanceplanecode);
+  emit_code("),", &context->instanceplanecode);
+  emit_code(x1buf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(y1buf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(z1buf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(n1buf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(x2buf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(y2buf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(z2buf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(n2buf.buffer, &context->instanceplanecode);
+  emit_code(")", &context->instanceplanecode);
   char_buf_free(&x1buf);
   char_buf_free(&y1buf);
   char_buf_free(&z1buf);
@@ -2292,6 +2292,13 @@ void gen_code(p_context_s *context, FILE *dest) {
     "* INSTANCES\n"
     "*********************************************************************************/\n");
   fprintf(dest, "%s", context->instancecode.buffer);
+  fprintf(dest, "/********************************************************************************/\n");
+
+  fprintf(dest, 
+    "/*********************************************************************************\n"
+    "* INSTANCE PLANES\n"
+    "*********************************************************************************/\n");
+  fprintf(dest, "%s", context->instanceplanecode.buffer);
   fprintf(dest, "/********************************************************************************/\n");
 }
 

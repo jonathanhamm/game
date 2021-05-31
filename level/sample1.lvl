@@ -281,6 +281,10 @@
 	Level turd := {
 		"name": derp,
     "ambientGravity": [0, 0, -9.81],
+    "instancePlanes": [
+      { "model": m1, "x1": 3, "y1": 3, "z1": 3, "n1": 10, 
+          "x2": 20, "y2": 20, "z2": 20, "n2": 10}
+    ],
 		"instances": [
 			/* { "x": 1.0, "y": 1.0, "z": 0.0, "mass": 1.0, "model": m1, "scalex": 0.01, "isSubjectToGravity": 1, "isStatic": 1},
 			{ "x": 1.0, "y": 1.0, "z": 1.0+3*4-2, "mass": 1.0, "model": m1, "scalex": 1.0, "isSubjectToGravity": 1, "isStatic": 0},
