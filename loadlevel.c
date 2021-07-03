@@ -18,6 +18,7 @@ struct bob_db_s {
   sqlite3 *db;
   sqlite3_stmt *qambientgravity;
   sqlite3_stmt *qlevel;
+  sqlite3_stmt *qinstanceplanes;
   sqlite3_stmt *qmodel;
   sqlite3_stmt *qmesh;
   sqlite3_stmt *qshader;
@@ -30,6 +31,10 @@ const char *level_ambient_gravity_qstr =
   "SELECT ambientGravityX, ambientGravityY, ambientGravityZ"
   " FROM level"
   " WHERE name=?";
+const char *instance_plane_qstr =
+  "SELECT modelID, v1x, v1y, v1z, v1n, v2x, v2y, v2z, v2n"
+  " FROM instance_plane"
+  " WHERE levelID=?";
 const char *level_qstr = 
   "SELECT modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic"
   " FROM level AS l JOIN instance AS i"
@@ -56,6 +61,8 @@ static sqlite3_stmt *query_level;
 
 static int prepare_queries(bob_db_s *bdb);
 static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name);
+static int bob_dbload_instance_planes(bob_db_s *bdb, Level *lvl, int levelID);
+static InstancePlane *bob_dbload_instance_plane(bob_db_s *bdb);
 static Model *bob_dbload_model(bob_db_s *bdb, int modelID);
 static void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID);
 static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
@@ -117,6 +124,7 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   Model *model;
   pointer_vector_init(&lvl->instances);
   pointer_vector_init(&lvl->gravityObjects);
+  pointer_vector_init(&lvl->instance_planes);
   while (1) {
     rc = sqlite3_step(bdb->qlevel);
     if (rc == SQLITE_ROW) {
@@ -168,7 +176,72 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
     }
   }
   sqlite3_reset(bdb->qlevel);
+  bob_dbload_instance_planes(bdb, lvl, levelID);
   return lvl;
+}
+
+int bob_dbload_instance_planes(bob_db_s *bdb, Level *lvl, int levelID) {
+  int rc;
+
+  log_debug("loading level instances planes");
+
+  rc = sqlite3_bind_int(bdb->qinstanceplanes, 1, levelID);
+  if (rc != SQLITE_OK) {
+    log_error("failed to bind levelID parameter to instance plane query");
+    return -1;
+  }
+
+  while (1) {
+    rc = sqlite3_step(bdb->qinstanceplanes);
+    if (rc == SQLITE_ROW) {
+      InstancePlane *ip = bob_dbload_instance_plane(bdb);
+      pointer_vector_add(&lvl->instance_planes, ip);
+    } 
+    else if (rc == SQLITE_DONE) {
+      break;
+    }
+    else {
+      log_error("Unexpected result from database instance plane query: %d\n", rc);
+      return -1;
+    }
+  }
+  sqlite3_reset(bdb->qinstanceplanes);
+  return 0;
+}
+
+InstancePlane *bob_dbload_instance_plane(bob_db_s *bdb) {
+  int modelID;
+  Model *model;
+  int v1n, v2n;
+  double v1x, v1y, v1z, v2x, v2y, v2z;
+  InstancePlane *ip = malloc(sizeof *ip); 
+  if (!ip) {
+    log_error("failed to allocate memory for while loading instance plane");
+    return NULL;
+  }
+  modelID = sqlite3_column_int(bdb->qinstanceplanes, 0);
+  v1x = sqlite3_column_double(bdb->qinstanceplanes, 1);
+  v1y = sqlite3_column_double(bdb->qinstanceplanes, 2);
+  v1z = sqlite3_column_double(bdb->qinstanceplanes, 3);
+  v1n = sqlite3_column_int(bdb->qinstanceplanes, 4);
+  v2x = sqlite3_column_double(bdb->qinstanceplanes, 5);
+  v2y = sqlite3_column_double(bdb->qinstanceplanes, 6);
+  v2z = sqlite3_column_double(bdb->qinstanceplanes, 7);
+  v2n = sqlite3_column_int(bdb->qinstanceplanes, 8);
+  model = bob_dbload_model(bdb, modelID);
+  ip->v1[0] = v1x;
+  ip->v1[1] = v1y;
+  ip->v1[2] = v1z;
+  ip->n1 = v1n;
+  ip->v2[0] = v2x;
+  ip->v2[1] = v2y;
+  ip->v2[2] = v2z;
+  ip->n2 = v2n;
+  log_debug("loaded instance plane: <%f,%f,%f>x%d | <%f,%f,%f>x%d | %p", 
+      ip->v1[0], ip->v1[1], ip->v1[2], ip->n1,
+      ip->v2[0], ip->v2[1], ip->v2[2], ip->n2,
+      ip->model);
+  return ip;
 }
 
 int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name) {
@@ -213,6 +286,11 @@ int prepare_queries(bob_db_s *bdb) {
   rc = sqlite3_prepare_v2(bdb->db, level_qstr, -1, &bdb->qlevel, 0);
   if (rc != SQLITE_OK) {
     log_error("failed to prepare level query");
+    return -1;
+  }
+  rc = sqlite3_prepare_v2(bdb->db, instance_plane_qstr, -1, &bdb->qinstanceplanes, 0);
+  if (rc != SQLITE_OK) {
+    log_error("failed to prepare instance plane query");
     return -1;
   }
   rc = sqlite3_prepare_v2(bdb->db, model_qstr, -1, &bdb->qmodel, 0);
@@ -324,7 +402,7 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
   }
   rc = sqlite3_step(bdb->qmesh);
   if (rc != SQLITE_DONE) {
-    log_error("Database in invalid format");
+    log_error("Database in invalid format for reading meshes");
     return;
   }
   sqlite3_reset(bdb->qmesh);
