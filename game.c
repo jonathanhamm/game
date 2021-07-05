@@ -187,7 +187,7 @@ void bob_start(void) {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-					
+
   bob_db_s *bdb = bob_loaddb("level/test.db");
 
   perror("start 1");

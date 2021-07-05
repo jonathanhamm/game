@@ -8,6 +8,8 @@
 
 static void print_png_version(void);
 static int load_png(Png *png, const char *file_path);
+static GLenum gl_map_color_type(png_byte color_type);
+
 
 int gl_create_program_t1(GlProgram *program, GlShader *vertex_shader, GlShader *fragment_shader) {
 	int phandle;
@@ -181,7 +183,9 @@ int gl_load_texture(GlTexture *texture, const char *file_path) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture->png.width, texture->png.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture->png.data);
+
+  GLenum gl_color_type = gl_map_color_type(texture->png.color_type);
+	glTexImage2D(GL_TEXTURE_2D, 0, gl_color_type, texture->png.width, texture->png.height, 0, gl_color_type, GL_UNSIGNED_BYTE, texture->png.data);
 	glBindTexture(GL_TEXTURE_2D, 0);
 	texture->handle = handle;
 
@@ -265,7 +269,7 @@ int load_png(Png *png, const char *file_path) {
 	bit_depth = png_get_bit_depth(png_ptr, info_ptr);
 	row_ptrs = png_get_rows(png_ptr, info_ptr);
 	row_size = png_get_rowbytes(png_ptr, info_ptr);
-	
+
 	data = malloc(row_size * height);
 	if (!data) {
 		log_error("Error reading png: %s - Out of Memory", file_path);
@@ -293,4 +297,20 @@ void gl_delete_texture(GlTexture *texture) {
 	glDeleteTextures(1, &texture->handle);
 	free(texture->png.data);
 };
+
+GLenum gl_map_color_type(png_byte color_type) {
+  switch(color_type) {
+    case PNG_COLOR_TYPE_GRAY:
+    case PNG_COLOR_TYPE_GRAY_ALPHA:
+    case PNG_COLOR_TYPE_PALETTE:
+    case PNG_COLOR_TYPE_RGB:
+      return GL_RGB;
+    case PNG_COLOR_TYPE_RGB_ALPHA:
+      return GL_RGBA;
+    default:
+      log_error("unknown color type %d", color_type);
+      return GL_INVALID_VALUE;
+  }
+}
+
 
