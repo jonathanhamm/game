@@ -32,7 +32,7 @@ const char *level_ambient_gravity_qstr =
   " FROM level"
   " WHERE name=?";
 const char *instance_plane_qstr =
-  "SELECT modelID, v1x, v1y, v1z, v1n, v2x, v2y, v2z, v2n"
+  "SELECT modelID, px, py, pz, vx, vy, vz, n1, n2"
   " FROM instance_plane"
   " WHERE levelID=?";
 const char *level_qstr = 
@@ -212,34 +212,34 @@ int bob_dbload_instance_planes(bob_db_s *bdb, Level *lvl, int levelID) {
 InstancePlane *bob_dbload_instance_plane(bob_db_s *bdb) {
   int modelID;
   Model *model;
-  int v1n, v2n;
-  double v1x, v1y, v1z, v2x, v2y, v2z;
+  int n1, n2;
+  double px, py, pz, vx, vy, vz;
   InstancePlane *ip = malloc(sizeof *ip); 
   if (!ip) {
     log_error("failed to allocate memory for while loading instance plane");
     return NULL;
   }
   modelID = sqlite3_column_int(bdb->qinstanceplanes, 0);
-  v1x = sqlite3_column_double(bdb->qinstanceplanes, 1);
-  v1y = sqlite3_column_double(bdb->qinstanceplanes, 2);
-  v1z = sqlite3_column_double(bdb->qinstanceplanes, 3);
-  v1n = sqlite3_column_int(bdb->qinstanceplanes, 4);
-  v2x = sqlite3_column_double(bdb->qinstanceplanes, 5);
-  v2y = sqlite3_column_double(bdb->qinstanceplanes, 6);
-  v2z = sqlite3_column_double(bdb->qinstanceplanes, 7);
-  v2n = sqlite3_column_int(bdb->qinstanceplanes, 8);
+  px = sqlite3_column_double(bdb->qinstanceplanes, 1);
+  py = sqlite3_column_double(bdb->qinstanceplanes, 2);
+  pz = sqlite3_column_double(bdb->qinstanceplanes, 3);
+  vx = sqlite3_column_int(bdb->qinstanceplanes, 4);
+  vy = sqlite3_column_double(bdb->qinstanceplanes, 5);
+  vz = sqlite3_column_double(bdb->qinstanceplanes, 6);
+  n1 = sqlite3_column_double(bdb->qinstanceplanes, 7);
+  n2 = sqlite3_column_int(bdb->qinstanceplanes, 8);
   model = bob_dbload_model(bdb, modelID);
-  ip->v1[0] = v1x;
-  ip->v1[1] = v1y;
-  ip->v1[2] = v1z;
-  ip->n1 = v1n;
-  ip->v2[0] = v2x;
-  ip->v2[1] = v2y;
-  ip->v2[2] = v2z;
-  ip->n2 = v2n;
+  ip->p[0] = px;
+  ip->p[1] = py;
+  ip->p[2] = pz;
+  ip->v[0] = vx;
+  ip->v[1] = vy;
+  ip->v[2] = vz;
+  ip->n1 = n1;
+  ip->n2 = n2;
   log_debug("loaded instance plane: <%f,%f,%f>x%d | <%f,%f,%f>x%d | %p", 
-      ip->v1[0], ip->v1[1], ip->v1[2], ip->n1,
-      ip->v2[0], ip->v2[1], ip->v2[2], ip->n2,
+      ip->p[0], ip->p[1], ip->p[2], ip->n1,
+      ip->v[0], ip->v[1], ip->v[2], ip->n2,
       ip->model);
   return ip;
 }

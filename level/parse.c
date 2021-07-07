@@ -1513,7 +1513,7 @@ void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s
   int i;
   const bool *isgen;
 
-  emit_code(" INSERT INTO instance_plane(modelID, levelID, v1x, v1y, v1z, v1n, v2x, v2y, v2z, v2n) VALUES\n",
+  emit_code(" INSERT INTO instance_plane(modelID, levelID, px, py, pz, vx, vy, vz, n1, n2) VALUES\n",
       &context->instanceplanecode);
   for (i = 0; i < instances.size - 1; i++) {
     emit_code(" \t", &context->instanceplanecode); 
@@ -2104,61 +2104,61 @@ bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_
     return false;
   }
 
-  tnode_s *vx1 = bob_str_map_get(obj, M_KEY("x1"));
-  if (!vx1) {
-    report_semantics_error("Instance missing required 'x1' property", context);
+  tnode_s *px = bob_str_map_get(obj, M_KEY("px"));
+  if (!px) {
+    report_semantics_error("Instance missing required 'px' property", context);
     return false;
   }
-  CharBuf x1buf = val_to_str(vx1);
+  CharBuf pxbuf = val_to_str(px);
 
-  tnode_s *vy1 = bob_str_map_get(obj, M_KEY("y1"));
-  if (!vy1) {
-    report_semantics_error("Instance missing required 'y1' property", context);
+  tnode_s *py = bob_str_map_get(obj, M_KEY("py"));
+  if (!py) {
+    report_semantics_error("Instance missing required 'py' property", context);
     return false;
   }
-  CharBuf y1buf = val_to_str(vy1);
+  CharBuf pybuf = val_to_str(py);
 
-  tnode_s *vz1 = bob_str_map_get(obj, M_KEY("z1"));
-  if (!vz1) {
-    report_semantics_error("Instance missing required 'z1' property", context);
+  tnode_s *pz = bob_str_map_get(obj, M_KEY("pz"));
+  if (!pz) {
+    report_semantics_error("Instance missing required 'pz' property", context);
     return false;
   }
-  CharBuf z1buf = val_to_str(vz1);
+  CharBuf pzbuf = val_to_str(pz);
 
-  tnode_s *vn1 = bob_str_map_get(obj, M_KEY("n1"));
-  if (!vn1) {
+  tnode_s *vx = bob_str_map_get(obj, M_KEY("vx"));
+  if (!vx) {
+    report_semantics_error("Instance missing required 'vx' property", context);
+    return false;
+  }
+  CharBuf vxbuf = val_to_str(vx);
+
+  tnode_s *vy = bob_str_map_get(obj, M_KEY("vy"));
+  if (!vy) {
+    report_semantics_error("Instance missing required 'vy' property", context);
+    return false;
+  }
+  CharBuf vybuf = val_to_str(vy);
+
+  tnode_s *vz = bob_str_map_get(obj, M_KEY("vz"));
+  if (!vz) {
+    report_semantics_error("Instance missing required 'vz' property", context);
+    return false;
+  }
+  CharBuf vzbuf = val_to_str(vz);
+
+  tnode_s *n1 = bob_str_map_get(obj, M_KEY("n1"));
+  if (!n1) {
     report_semantics_error("Instance missing required 'n1' property", context);
     return false;
   }
-  CharBuf n1buf = val_to_str(vn1);
+  CharBuf n1buf = val_to_str(n1);
 
-  tnode_s *vx2 = bob_str_map_get(obj, M_KEY("x2"));
-  if (!vx2) {
-    report_semantics_error("Instance missing required 'x2' property", context);
-    return false;
-  }
-  CharBuf x2buf = val_to_str(vx2);
-
-  tnode_s *vy2 = bob_str_map_get(obj, M_KEY("y2"));
-  if (!vy2) {
-    report_semantics_error("Instance missing required 'y2' property", context);
-    return false;
-  }
-  CharBuf y2buf = val_to_str(vy2);
-
-  tnode_s *vz2 = bob_str_map_get(obj, M_KEY("z2"));
-  if (!vz2) {
-    report_semantics_error("Instance missing required 'z2' property", context);
-    return false;
-  }
-  CharBuf z2buf = val_to_str(vz2);
-
-  tnode_s *vn2 = bob_str_map_get(obj, M_KEY("n2"));
-  if (!vn2) {
+  tnode_s *n2 = bob_str_map_get(obj, M_KEY("n2"));
+  if (!n2) {
     report_semantics_error("Instance missing required 'n2' property", context);
     return false;
   }
-  CharBuf n2buf = val_to_str(vn2);
+  CharBuf n2buf = val_to_str(n2);
 
   char *model_name;
   isgen = bob_str_map_get(model->val.obj, OBJ_ISGEN_KEY);
@@ -2176,29 +2176,29 @@ bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_
   emit_code("),(SELECT id FROM ", &context->instanceplanecode);
   emit_code(levelid, &context->instanceplanecode);
   emit_code("),", &context->instanceplanecode);
-  emit_code(x1buf.buffer, &context->instanceplanecode);
+  emit_code(pxbuf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
-  emit_code(y1buf.buffer, &context->instanceplanecode);
+  emit_code(pybuf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
-  emit_code(z1buf.buffer, &context->instanceplanecode);
+  emit_code(pzbuf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(vxbuf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(vybuf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(vzbuf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
   emit_code(n1buf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
-  emit_code(x2buf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(y2buf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(z2buf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
   emit_code(n2buf.buffer, &context->instanceplanecode);
   emit_code(")", &context->instanceplanecode);
-  char_buf_free(&x1buf);
-  char_buf_free(&y1buf);
-  char_buf_free(&z1buf);
+  char_buf_free(&pxbuf);
+  char_buf_free(&pybuf);
+  char_buf_free(&pzbuf);
+  char_buf_free(&vxbuf);
+  char_buf_free(&vybuf);
+  char_buf_free(&vzbuf);
   char_buf_free(&n1buf);
-  char_buf_free(&x2buf);
-  char_buf_free(&y2buf);
-  char_buf_free(&z2buf);
   char_buf_free(&n2buf);
   return true;
 }

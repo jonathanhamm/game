@@ -4,9 +4,9 @@
 #include "models.h"
 
 struct InstancePlane {
-  vec3 v1;
+  vec3 p;
+  vec3 v;
   int n1;
-  vec3 v2;
   int n2;
   Model *model;
 };
