@@ -9,7 +9,8 @@ typedef struct InstancePlane InstancePlane;
 
 struct InstancePlane {
   vec3 p;
-  vec3 v;
+  vec3 v1;
+  vec3 v2;
   int n1;
   int n2;
   Model *model;
