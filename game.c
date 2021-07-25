@@ -14,6 +14,8 @@
 
 
 static void level_render(GLFWwindow *window, Level *level);
+static void render_instance(Instance *instance, Camera *camera);
+static void render_instance_plane(InstancePlane *ip, Camera *camera);
 static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
 static Instance *spawn_instance(Level *level);
 
@@ -28,7 +30,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
 
-static void render_instance(Instance *instance, Camera *camera) {
+void render_instance(Instance *instance, Camera *camera) {
 	mat4 mmatrix;	
 	mat4 cmatrix;	
 	GLint model_handle, camera_handle, tex_handle;
@@ -60,14 +62,21 @@ static void render_instance(Instance *instance, Camera *camera) {
 	glUseProgram(0);
 }
 
+void render_instance_plane(InstancePlane *ip, Camera *camera) {
+
+}
+
 void level_render(GLFWwindow *window, Level *level) {
 	int i;
-  
+
+  for (i = 0; i < level->instance_planes.size; i++) {
+    InstancePlane *ip = level->instance_planes.buffer[i];
+    render_instance_plane(ip, &level->camera);
+  }
 	for (i = 0; i < level->instances.size; i++) {
 		Instance *instance = level->instances.buffer[i];
 		render_instance(level->instances.buffer[i], &level->camera);
 	}
-
 }
 
 void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
@@ -190,7 +199,6 @@ void bob_start(void) {
 
   bob_db_s *bdb = bob_loaddb("level/test.db");
 
-  perror("start 1");
   Level *blvl = bob_loadlevel(bdb, "hello");
 
 	Level level = *blvl;

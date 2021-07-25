@@ -1513,7 +1513,9 @@ void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s
   int i;
   const bool *isgen;
 
-  emit_code(" INSERT INTO instance_plane(modelID, levelID, px, py, pz, vx, vy, vz, n1, n2) VALUES\n",
+  emit_code(
+      " INSERT INTO instance_plane(modelID, levelID, px, py, pz, "
+      "v1x, v1y, v1z, v2x, v2y, v2z, n1, n2) VALUES\n",
       &context->instanceplanecode);
   for (i = 0; i < instances.size - 1; i++) {
     emit_code(" \t", &context->instanceplanecode); 
@@ -2125,26 +2127,47 @@ bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_
   }
   CharBuf pzbuf = val_to_str(pz);
 
-  tnode_s *vx = bob_str_map_get(obj, M_KEY("vx"));
-  if (!vx) {
-    report_semantics_error("Instance missing required 'vx' property", context);
+  tnode_s *v1x = bob_str_map_get(obj, M_KEY("v1x"));
+  if (!v1x) {
+    report_semantics_error("Instance missing required 'v1x' property", context);
     return false;
   }
-  CharBuf vxbuf = val_to_str(vx);
+  CharBuf v1xbuf = val_to_str(v1x);
 
-  tnode_s *vy = bob_str_map_get(obj, M_KEY("vy"));
-  if (!vy) {
-    report_semantics_error("Instance missing required 'vy' property", context);
+  tnode_s *v1y = bob_str_map_get(obj, M_KEY("v1y"));
+  if (!v1y) {
+    report_semantics_error("Instance missing required 'v1y' property", context);
     return false;
   }
-  CharBuf vybuf = val_to_str(vy);
+  CharBuf v1ybuf = val_to_str(v1y);
 
-  tnode_s *vz = bob_str_map_get(obj, M_KEY("vz"));
-  if (!vz) {
-    report_semantics_error("Instance missing required 'vz' property", context);
+  tnode_s *v1z = bob_str_map_get(obj, M_KEY("v1z"));
+  if (!v1z) {
+    report_semantics_error("Instance missing required 'v1z' property", context);
     return false;
   }
-  CharBuf vzbuf = val_to_str(vz);
+  CharBuf v1zbuf = val_to_str(v1z);
+
+  tnode_s *v2x = bob_str_map_get(obj, M_KEY("v2x"));
+  if (!v2x) {
+    report_semantics_error("Instance missing required 'v2x' property", context);
+    return false;
+  }
+  CharBuf v2xbuf = val_to_str(v2x);
+
+  tnode_s *v2y = bob_str_map_get(obj, M_KEY("v2y"));
+  if (!v2y) {
+    report_semantics_error("Instance missing required 'v2y' property", context);
+    return false;
+  }
+  CharBuf v2ybuf = val_to_str(v2y);
+
+  tnode_s *v2z = bob_str_map_get(obj, M_KEY("v2z"));
+  if (!v2z) {
+    report_semantics_error("Instance missing required 'v2z' property", context);
+    return false;
+  }
+  CharBuf v2zbuf = val_to_str(v2z);
 
   tnode_s *n1 = bob_str_map_get(obj, M_KEY("n1"));
   if (!n1) {
@@ -2182,11 +2205,17 @@ bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_
   emit_code(",", &context->instanceplanecode);
   emit_code(pzbuf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
-  emit_code(vxbuf.buffer, &context->instanceplanecode);
+  emit_code(v1xbuf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
-  emit_code(vybuf.buffer, &context->instanceplanecode);
+  emit_code(v1ybuf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
-  emit_code(vzbuf.buffer, &context->instanceplanecode);
+  emit_code(v1zbuf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(v2xbuf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(v2ybuf.buffer, &context->instanceplanecode);
+  emit_code(",", &context->instanceplanecode);
+  emit_code(v2zbuf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
   emit_code(n1buf.buffer, &context->instanceplanecode);
   emit_code(",", &context->instanceplanecode);
@@ -2195,9 +2224,12 @@ bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_
   char_buf_free(&pxbuf);
   char_buf_free(&pybuf);
   char_buf_free(&pzbuf);
-  char_buf_free(&vxbuf);
-  char_buf_free(&vybuf);
-  char_buf_free(&vzbuf);
+  char_buf_free(&v1xbuf);
+  char_buf_free(&v1ybuf);
+  char_buf_free(&v1zbuf);
+  char_buf_free(&v2xbuf);
+  char_buf_free(&v2ybuf);
+  char_buf_free(&v2zbuf);
   char_buf_free(&n1buf);
   char_buf_free(&n2buf);
   return true;
