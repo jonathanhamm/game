@@ -17,6 +17,7 @@ struct InstancePlane {
 };
 
 extern void instance_plane_get_matrix(InstancePlane *ip, mat4 m4);
+extern void render_instance_plane(InstancePlane *ip);
 
 #endif
 
