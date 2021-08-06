@@ -214,6 +214,7 @@
   Texture texture := {
     "path": "textures/pge_icon.png"
   }
+
   Program program1 := {
     "vertex": {
       "src":
@@ -281,7 +282,7 @@
 	Level turd := {
 		"name": derp,
     "ambientGravity": [0, 0, -9.81],
-    "instancePlanes": [
+    /* "instancePlanes": [
       { 
         "model": m1, 
         "px": 3, 
@@ -293,7 +294,7 @@
         "n1": 10,
         "n2": 30
       }
-    ],
+    ], */
 		"instances": [
 			/* { "x": 1.0, "y": 1.0, "z": 0.0, "mass": 1.0, "model": m1, "scalex": 0.01, "isSubjectToGravity": 1, "isStatic": 1},
 			{ "x": 1.0, "y": 1.0, "z": 1.0+3*4-2, "mass": 1.0, "model": m1, "scalex": 1.0, "isSubjectToGravity": 1, "isStatic": 0},

@@ -265,7 +265,7 @@ int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name) {
     lvl->ambient_gravity[2] = agz;
   }
   else {
-    log_error("Databse error occurred during ambient gravity query.");
+    log_error("Database error occurred during ambient gravity query: %d", rc);
     return -1;
   }
   rc = sqlite3_step(bdb->qambientgravity);

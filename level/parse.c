@@ -1896,16 +1896,16 @@ bool emit_mesh(tnode_s *mesh, p_context_s *context) {
   }
   tnode = vertex_array.list[i];
   if (tnode->type == PTYPE_INT) {
-      char_buf_init(&numbuf);
-      char_add_i(&numbuf, tnode->val.i);
-      char_add_s(&vertexstr, numbuf.buffer);
-      char_buf_free(&numbuf);
+    char_buf_init(&numbuf);
+    char_add_i(&numbuf, tnode->val.i);
+    char_add_s(&vertexstr, numbuf.buffer);
+    char_buf_free(&numbuf);
   }
   else if (tnode->type == PTYPE_FLOAT) {
-      char_buf_init(&numbuf);
-      char_add_d(&numbuf, tnode->val.f);
-      char_add_s(&vertexstr, numbuf.buffer);
-      char_buf_free(&numbuf);
+    char_buf_init(&numbuf);
+    char_add_d(&numbuf, tnode->val.f);
+    char_add_s(&vertexstr, numbuf.buffer);
+    char_buf_free(&numbuf);
   }
   else
     fprintf(stderr, "Unknown type %d for mesh array.\n", tnode->type);
