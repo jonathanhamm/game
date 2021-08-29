@@ -245,8 +245,10 @@ int tok_keyword(char *ptr) {
 		return TOK_MESH_DEC;
 	else if(!strcmp(ptr, "Instance"))
 		return TOK_INSTANCE_DEC;
-  else if (!strcmp(ptr, "InstancePlane"))
-    return TOK_INSTANCE_PLANE_DEC;
+  else if(!strcmp(ptr, "LazyInstance"))
+    return TOK_LAZY_INSTANCE_DEC;
+  else if(!strcmp(ptr, "Range"))
+    return TOK_RANGE_DEC;
 	else if(!strcmp(ptr, "Level"))
 		return TOK_LEVEL_DEC;
 	else if(!strcmp(ptr, "Float"))

@@ -106,13 +106,15 @@ static void tnode_list_init(tnode_list_s *list);
 static int tnode_list_add(tnode_list_s *list, tnode_s *node);
 static void emit_code(const char *code, CharBuf *segment);
 static void emit_instance_batch(p_context_s *context, char *levelid, tnode_list_s instances);
-static void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s instances);
+static void emit_range_batch(p_context_s *context, char *levelid, tnode_list_s ranges);
+static char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node);
 static bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance);
 static bool emit_level(p_context_s *context, tnode_s *level);
 static bool emit_instance_data(p_context_s *context, tnode_s *level, char *levelid);
 static bool emit_instances(p_context_s *context, char *levelid, tnode_s *instances);
-static bool emit_instance_planes(p_context_s *context, char *levelid, tnode_s *instance_planes);
-static bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_plane);
+static bool emit_lazy_instances(p_context_s *context, char *levelid, tnode_s *lazy_instances);
+static void emit_lazy_instance_batch(p_context_s *context, char *levelid, tnode_list_s lazy_instances);
+static bool emit_lazy_instance(p_context_s *context, char *levelid, tnode_s *node);
 static bool emit_model(tnode_s *model, p_context_s *context);
 static bool emit_mesh(tnode_s *mesh, p_context_s *context);
 static bool emit_program(tnode_s *program, p_context_s *context);
@@ -143,7 +145,8 @@ p_context_s parse(toklist_s *list) {
   char_buf_init(&context.modelcode);
   char_buf_init(&context.levelcode);
   char_buf_init(&context.instancecode);
-  char_buf_init(&context.instanceplanecode);
+  char_buf_init(&context.lazyinstancecode);
+  char_buf_init(&context.rangeCode);
   bob_str_map_init(&context.symtable);
   header = parse_header(&context);
   body = parse_body(&context);
@@ -249,7 +252,7 @@ void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist) {
     case TOK_MESH_DEC:
     case TOK_MODEL_DEC:
     case TOK_INSTANCE_DEC:
-    case TOK_INSTANCE_PLANE_DEC:
+    case TOK_LAZY_INSTANCE_DEC:
     case TOK_LEVEL_DEC:
     case TOK_INT_DEC:
     case TOK_FLOAT_DEC:
@@ -275,7 +278,7 @@ void parse_statement_list(p_context_s *context, tnode_list_s *stmtlist) {
 tnode_s *parse_statement(p_context_s *context) {
   tnode_s *statement = NULL;
   if(context->currtok->type == TOK_IDENTIFIER) {
-    statement = parse_assignstmt(context);	
+    statement = parse_assignstmt(context);
   }
   else {
     statement = parse_declaration(context);
@@ -392,8 +395,11 @@ tnode_s *parse_basic_type(p_context_s *context) {
     case TOK_INSTANCE_DEC:
       type = PTYPE_INSTANCE_DEC;
       break;
-    case TOK_INSTANCE_PLANE_DEC:
-      type = PTYPE_INSTANCE_PLANE_DEC;
+    case TOK_LAZY_INSTANCE_DEC:
+      type = PTYPE_LAZY_INSTANCE_DEC;
+      break;
+    case TOK_RANGE_DEC:
+      type = PTYPE_RANGE_DEC; 
       break;
     case TOK_INT_DEC:
       type = PTYPE_INT_DEC;
@@ -830,8 +836,10 @@ bool typecheck_basic_assignment(p_context_s *context, p_nodetype_e declared, p_n
       return expression == PTYPE_OBJECT || expression == PTYPE_MODEL;
     case PTYPE_INSTANCE_DEC:
       return expression == PTYPE_OBJECT || expression == PTYPE_INSTANCE;
-    case PTYPE_INSTANCE_PLANE_DEC:
-      return expression == PTYPE_OBJECT || expression == PTYPE_INSTANCE_PLANE;
+    case PTYPE_LAZY_INSTANCE_DEC:
+      return expression == PTYPE_OBJECT || expression == PTYPE_LAZY_INSTANCE;
+    case PTYPE_RANGE_DEC:
+      return expression == PTYPE_OBJECT || expression == PTYPE_RANGE;
     case PTYPE_INT_DEC:
       return expression == PTYPE_INT;
     case PTYPE_FLOAT_DEC:
@@ -939,8 +947,15 @@ p_nodetype_e resolve_array_type(tnode_list_s list) {
           else
             return PTYPE_ANY;
         }
-      case PTYPE_INSTANCE_PLANE:
-        if (type_i != PTYPE_INSTANCE_PLANE) {
+      case PTYPE_LAZY_INSTANCE:
+        if (type_i != PTYPE_LAZY_INSTANCE) {
+          if (type_i == PTYPE_OBJECT)
+            type = PTYPE_OBJECT;
+          else
+            return PTYPE_ANY;
+        }
+      case PTYPE_RANGE:
+        if (type_i != PTYPE_RANGE) {
           if (type_i == PTYPE_OBJECT)
             type = PTYPE_OBJECT;
           else
@@ -954,7 +969,8 @@ p_nodetype_e resolve_array_type(tnode_list_s list) {
           case PTYPE_MESH:
           case PTYPE_MODEL:
           case PTYPE_INSTANCE:
-          case PTYPE_INSTANCE_PLANE:
+          case PTYPE_LAZY_INSTANCE:
+          case PTYPE_RANGE:
           case PTYPE_OBJECT:
           case PTYPE_LEVEL:
             break;
@@ -1169,7 +1185,8 @@ tnode_s *exec_access_obj(tnode_s *obj, char *key) {
     case PTYPE_TEXTURE:
     case PTYPE_PROGRAM:
     case PTYPE_INSTANCE:
-    case PTYPE_INSTANCE_PLANE:
+    case PTYPE_LAZY_INSTANCE:
+    case PTYPE_RANGE:
     case PTYPE_OBJECT:
     case PTYPE_LEVEL:
       break;
@@ -1200,7 +1217,8 @@ tnode_s *exec_access_arr(tnode_s *arr, tnode_s *index) {
     case PTYPE_TEXTURE:
     case PTYPE_PROGRAM:
     case PTYPE_INSTANCE:
-    case PTYPE_INSTANCE_PLANE:
+    case PTYPE_LAZY_INSTANCE:
+    case PTYPE_RANGE:
     case PTYPE_OBJECT:
     case PTYPE_LEVEL:
       if (index->type != PTYPE_STRING) {
@@ -1509,10 +1527,11 @@ void emit_instance_batch(p_context_s *context, char *levelid, tnode_list_s insta
   emit_code(";\n", &context->instancecode);
 }
 
-void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s instances) {
+void emit_range_batch(p_context_s *context, char *levelid, tnode_list_s ranges) {
   int i;
   const bool *isgen;
 
+  /*
   emit_code(
       " INSERT INTO instance_plane(modelID, levelID, px, py, pz, "
       "v1x, v1y, v1z, v2x, v2y, v2z, n1, n2) VALUES\n",
@@ -1525,6 +1544,81 @@ void emit_instance_plane_batch(p_context_s *context, char *levelid, tnode_list_s
   emit_code(" \t", &context->instanceplanecode); 
   emit_instance_plane(context, levelid, instances.list[i]);
   emit_code(";\n", &context->instanceplanecode); 
+  */
+
+  emit_code("INSERT INTO range(levelID,steps,var,child) VALUES", &context->rangeCode);
+  for (i = 0; i < ranges.size - 1; i++) {
+    emit_range(context, levelid, ranges.list[i]);    
+  }
+}
+
+char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
+  StrMap *obj = range_node->val.obj;
+
+  tnode_s *var = bob_str_map_get(obj, M_KEY("var"));
+  if (!var) {
+    report_semantics_error("Range missing required 'var' property", context);
+    return false;
+  }
+  CharBuf varbuf = val_to_str(var);
+
+  tnode_s *steps = bob_str_map_get(obj, M_KEY("steps"));
+  if (!steps) {
+    report_semantics_error("Range missing required 'steps' property", context);
+    return false;
+  }
+  CharBuf stepsbuf = val_to_str(steps);
+
+  //insert nested ranges
+
+  tnode_s *child = bob_str_map_get(obj, M_KEY("child"));
+  if (child != NULL) {
+    char *child_table = emit_range(context, levelid, child);
+    if (!emit_range(context, levelid, child)) {
+      return false;
+    }
+    //insert new range with child
+    emit_code("(", &context->rangeCode);
+    emit_code("(SELECT id FROM ", &context->rangeCode);
+    emit_code(levelid, &context->rangeCode);
+    emit_code("),", &context->rangeCode);
+    emit_code(stepsbuf.buffer, &context->rangeCode);
+    emit_code(",", &context->rangeCode);
+    emit_code(varbuf.buffer, &context->rangeCode);
+    emit_code(",", &context->rangeCode);
+    emit_code("(SELECT id FROM ", &context->rangeCode);
+    emit_code(child_table, &context->rangeCode);
+    emit_code(")),", &context->rangeCode);
+  }
+  else {
+    //insert new range
+    emit_code("(", &context->rangeCode);
+    emit_code("(SELECT id FROM ", &context->rangeCode);
+    emit_code(levelid, &context->rangeCode);
+    emit_code("),", &context->rangeCode);
+    emit_code(stepsbuf.buffer, &context->rangeCode);
+    emit_code(",", &context->rangeCode);
+    emit_code(varbuf.buffer, &context->rangeCode);
+    emit_code(",", &context->rangeCode);
+    emit_code("NULL),", &context->rangeCode);
+  }
+
+  //add temp table for range id
+  char *table_name = make_label(context, "range");
+  emit_code("CREATE TEMP TABLE ", &context->rangeCode);
+  emit_code(table_name, &context->rangeCode);
+  emit_code("(id) VALUES (last_insert_rowid());", &context->rangeCode);
+
+  //insert lazy instances
+  tnode_s *instances = bob_str_map_get(obj, M_KEY("instances"));
+  if (!instances) {
+    report_semantics_error("Range missing required 'instances' property", context);
+    return false;
+  }
+
+  emit_lazy_instances(context, levelid, instances);
+
+  return table_name;
 }
 
 bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance) {
@@ -2062,177 +2156,68 @@ bool emit_instance_data(p_context_s *context, tnode_s *level, char *levelid) {
   if (instances) {
     emit_instances(context, levelid, instances);
   }
-  tnode_s *instance_planes = bob_str_map_get(level->val.obj, M_KEY("instancePlanes"));
-  if (instance_planes) {
-    emit_instance_planes(context, levelid, instance_planes);
+  tnode_s *ranges = bob_str_map_get(level->val.obj, M_KEY("ranges"));
+  if (ranges) {
+    //TODO: create emit_ranges function
+    //emit_range_batch(context, levelid, ranges);
   }
-  if (!instances && !instance_planes) {
+  if (!instances && !ranges) {
     report_semantics_error("Level must at least have an instances or instancePlanes array", context);
     return false;
   }
 }
 
 bool emit_instances(p_context_s *context, char *levelid, tnode_s *instances) {
-  //TODO: check if array type
-  tnode_arraytype_val_s atval = instances->val.atval;
-  if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE) {
-    emit_instance_batch(context, levelid, atval.arr);
-  }
+  if (instances->type == PTYPE_ARRAY) {
+    tnode_arraytype_val_s atval = instances->val.atval;
+    if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE) {
+      emit_instance_batch(context, levelid, atval.arr);
+    }
+    else {
+      report_semantics_error("Instances must be an array of objects or instance types", context);
+      return false;
+    }
+    return true;
+  } 
   else {
-    report_semantics_error("Instances must be an array of objects or instance types", context);
+    report_semantics_error("Instances must be an array of objects or instance types", context);  
     return false;
   }
-  return true;
 }
 
-bool emit_instance_planes(p_context_s *context, char *levelid, tnode_s *instance_planes) {
-  tnode_arraytype_val_s atval = instance_planes->val.atval;
-  if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE_PLANE) {
-    emit_instance_plane_batch(context, levelid, atval.arr);
-  }
+bool emit_lazy_instances(p_context_s *context, char *levelid, tnode_s *lazy_instances) {
+  int i;
+
+  if (lazy_instances->type == PTYPE_ARRAY) {
+    tnode_arraytype_val_s atval = lazy_instances->val.atval;
+    if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE) {
+      emit_lazy_instance_batch(context, levelid, atval.arr);
+    } 
+    else {
+      report_semantics_error("Lazy Instances must be an array of objects or lazy instance types", context);
+    }
+  } 
   else {
-    report_semantics_error("instancePlanes must be an array of objects or instance plane types", context);
-    return false;
+      report_semantics_error("Lazy Instances must be an array of objects or lazy instance types", context);
   }
-  return true;
 }
 
-bool emit_instance_plane(p_context_s *context, char *levelid, tnode_s *instance_plane) {
-  bool *isgen;
-  StrMap *obj = instance_plane->val.obj;
-  tnode_s *model = bob_str_map_get(obj, M_KEY("model"));
-  if (!model) {
-    report_semantics_error("Instance Plane missing required 'model' property", context);
-    return false;
-  }
+void emit_lazy_instance_batch(p_context_s *context, char *levelid, tnode_list_s lazy_instances) {
+  int i; 
+  const bool *isgen;
 
-  tnode_s *px = bob_str_map_get(obj, M_KEY("px"));
-  if (!px) {
-    report_semantics_error("Instance missing required 'px' property", context);
-    return false;
+  emit_code(" INSERT INTO lazy_instance(modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic) VALUES\n", &context->lazyinstancecode);
+  for (i = 0; i < lazy_instances.size - 1; i++) {
+    emit_code(" \t", &context->lazyinstancecode);
+    emit_lazy_instance(context, levelid, lazy_instances.list[i]);
+    emit_code(",\n", &context->lazyinstancecode);
   }
-  CharBuf pxbuf = val_to_str(px);
+  emit_code(" \t", &context->lazyinstancecode);
+  emit_instance(context, levelid, lazy_instances.list[i]);
+  emit_code(";\n", &context->lazyinstancecode);
+}
 
-  tnode_s *py = bob_str_map_get(obj, M_KEY("py"));
-  if (!py) {
-    report_semantics_error("Instance missing required 'py' property", context);
-    return false;
-  }
-  CharBuf pybuf = val_to_str(py);
-
-  tnode_s *pz = bob_str_map_get(obj, M_KEY("pz"));
-  if (!pz) {
-    report_semantics_error("Instance missing required 'pz' property", context);
-    return false;
-  }
-  CharBuf pzbuf = val_to_str(pz);
-
-  tnode_s *v1x = bob_str_map_get(obj, M_KEY("v1x"));
-  if (!v1x) {
-    report_semantics_error("Instance missing required 'v1x' property", context);
-    return false;
-  }
-  CharBuf v1xbuf = val_to_str(v1x);
-
-  tnode_s *v1y = bob_str_map_get(obj, M_KEY("v1y"));
-  if (!v1y) {
-    report_semantics_error("Instance missing required 'v1y' property", context);
-    return false;
-  }
-  CharBuf v1ybuf = val_to_str(v1y);
-
-  tnode_s *v1z = bob_str_map_get(obj, M_KEY("v1z"));
-  if (!v1z) {
-    report_semantics_error("Instance missing required 'v1z' property", context);
-    return false;
-  }
-  CharBuf v1zbuf = val_to_str(v1z);
-
-  tnode_s *v2x = bob_str_map_get(obj, M_KEY("v2x"));
-  if (!v2x) {
-    report_semantics_error("Instance missing required 'v2x' property", context);
-    return false;
-  }
-  CharBuf v2xbuf = val_to_str(v2x);
-
-  tnode_s *v2y = bob_str_map_get(obj, M_KEY("v2y"));
-  if (!v2y) {
-    report_semantics_error("Instance missing required 'v2y' property", context);
-    return false;
-  }
-  CharBuf v2ybuf = val_to_str(v2y);
-
-  tnode_s *v2z = bob_str_map_get(obj, M_KEY("v2z"));
-  if (!v2z) {
-    report_semantics_error("Instance missing required 'v2z' property", context);
-    return false;
-  }
-  CharBuf v2zbuf = val_to_str(v2z);
-
-  tnode_s *n1 = bob_str_map_get(obj, M_KEY("n1"));
-  if (!n1) {
-    report_semantics_error("Instance missing required 'n1' property", context);
-    return false;
-  }
-  CharBuf n1buf = val_to_str(n1);
-
-  tnode_s *n2 = bob_str_map_get(obj, M_KEY("n2"));
-  if (!n2) {
-    report_semantics_error("Instance missing required 'n2' property", context);
-    return false;
-  }
-  CharBuf n2buf = val_to_str(n2);
-
-  char *model_name;
-  isgen = bob_str_map_get(model->val.obj, OBJ_ISGEN_KEY);
-  if (!*isgen) {
-    emit_model(model, context);
-  }
-  model_name = bob_str_map_get(model->val.obj, OBJ_ID_KEY);
-  if (!model_name) {
-    report_semantics_error("Internal compiler error, autogenerated name not found in object", context); 
-    return false;
-  }
-
-  emit_code("((SELECT id FROM ", &context->instanceplanecode);
-  emit_code(model_name, &context->instanceplanecode);
-  emit_code("),(SELECT id FROM ", &context->instanceplanecode);
-  emit_code(levelid, &context->instanceplanecode);
-  emit_code("),", &context->instanceplanecode);
-  emit_code(pxbuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(pybuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(pzbuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(v1xbuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(v1ybuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(v1zbuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(v2xbuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(v2ybuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(v2zbuf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(n1buf.buffer, &context->instanceplanecode);
-  emit_code(",", &context->instanceplanecode);
-  emit_code(n2buf.buffer, &context->instanceplanecode);
-  emit_code(")", &context->instanceplanecode);
-  char_buf_free(&pxbuf);
-  char_buf_free(&pybuf);
-  char_buf_free(&pzbuf);
-  char_buf_free(&v1xbuf);
-  char_buf_free(&v1ybuf);
-  char_buf_free(&v1zbuf);
-  char_buf_free(&v2xbuf);
-  char_buf_free(&v2ybuf);
-  char_buf_free(&v2zbuf);
-  char_buf_free(&n1buf);
-  char_buf_free(&n2buf);
-  return true;
+bool emit_lazy_instance(p_context_s *context, char *levelid, tnode_s *node) {
 }
 
 bool check_shader(tnode_s *program, p_context_s *context, const char *shader_key, const char *programname, bob_shader_e type) {
@@ -2326,12 +2311,13 @@ void gen_code(p_context_s *context, FILE *dest) {
   fprintf(dest, "%s", context->instancecode.buffer);
   fprintf(dest, "/********************************************************************************/\n");
 
-  fprintf(dest, 
-    "/*********************************************************************************\n"
-    "* INSTANCE PLANES\n"
-    "*********************************************************************************/\n");
-  fprintf(dest, "%s", context->instanceplanecode.buffer);
-  fprintf(dest, "/********************************************************************************/\n");
+  //TODO: convert to lazy instances
+  //fprintf(dest, 
+  //  "/*********************************************************************************\n"
+  //  "* INSTANCE PLANES\n"
+  //  "*********************************************************************************/\n");
+  //fprintf(dest, "%s", context->instanceplanecode.buffer);
+  //fprintf(dest, "/********************************************************************************/\n");
 }
 
 char *strip_quotes(char *level_name) {
