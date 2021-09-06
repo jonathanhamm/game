@@ -125,6 +125,7 @@ static bool emit_texture(tnode_s *texture, p_context_s *context);
 static bool check_shader(tnode_s *program, p_context_s *context, const char *shader, const char *programname, bob_shader_e type);
 static CharBuf val_to_str(tnode_s *val);
 static char *strip_quotes(char *level_name);
+static CharBuf get_obj_value_default(StrMap *obj, const char *key, const char *def);
 static void report_syntax_error(const char *message, p_context_s *context);
 static void report_semantics_error(const char *message, p_context_s *context);
 
@@ -1988,35 +1989,11 @@ bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance) {
   }
   CharBuf zbuf = val_to_str(vz);
 
-  tnode_s *scalex = bob_str_map_get(obj, M_KEY("scalex"));
-  CharBuf scalexbuf;
-  if (scalex) {
-    scalexbuf = val_to_str(scalex);
-  }
-  else {
-    char_buf_init(&scalexbuf);
-    char_add_s(&scalexbuf, "1.0");
-  }
+  CharBuf scalexbuf = get_obj_value_default(obj, M_KEY("scalex"), "1.0");
 
-  tnode_s *scaley = bob_str_map_get(obj, M_KEY("scaley"));
-  CharBuf scaleybuf;
-  if (scaley) {
-    scaleybuf = val_to_str(scaley);
-  }
-  else {
-    char_buf_init(&scaleybuf);
-    char_add_s(&scaleybuf, "1.0");
-  }
+  CharBuf scaleybuf = get_obj_value_default(obj, M_KEY("scaley"), "1.0");
 
-  tnode_s *scalez= bob_str_map_get(obj, M_KEY("scalez"));
-  CharBuf scalezbuf;
-  if (scalez) {
-    scalezbuf = val_to_str(scalez);
-  }
-  else {
-    char_buf_init(&scalezbuf);
-    char_add_s(&scalezbuf, "1.0");
-  }
+  CharBuf scalezbuf = get_obj_value_default(obj, M_KEY("scalez"), "1.0");
 
   tnode_s *mass = bob_str_map_get(obj, M_KEY("mass"));
   if (!mass) {
@@ -2025,23 +2002,9 @@ bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance) {
   }
   CharBuf massbuf = val_to_str(mass);
 
-  tnode_s *isSubjectToGravity = bob_str_map_get(obj, M_KEY("isSubjectToGravity"));
-  CharBuf isSubjectToGravitybuf;
-  if (isSubjectToGravity) {
-    isSubjectToGravitybuf = val_to_str(isSubjectToGravity);
-  } else {
-    char_buf_init(&isSubjectToGravitybuf);
-    char_add_s(&isSubjectToGravitybuf, "0");
-  }
+  CharBuf isSubjectToGravitybuf = get_obj_value_default(obj, M_KEY("isSubjectToGravity"), "0");
 
-  tnode_s *isStatic = bob_str_map_get(obj, M_KEY("isStatic"));
-  CharBuf isStaticbuf;
-  if (isStatic) {
-    isStaticbuf = val_to_str(isStatic);
-  } else {
-    char_buf_init(&isStaticbuf);
-    char_add_s(&isStaticbuf, "1");
-  }
+  CharBuf isStaticbuf = get_obj_value_default(obj, M_KEY("isStatic"), "1");
 
   char *model_name;
   isgen = bob_str_map_get(model->val.obj, OBJ_ISGEN_KEY);
@@ -2236,6 +2199,45 @@ bool emit_lazy_instance(p_context_s *context, char *levelid, char *rangeid, tnod
     report_semantics_error("Instance missing required 'model' property", context);
     return false;
   }
+
+	tnode_s *vx = bob_str_map_get(obj, M_KEY("x"));
+  if (!vx) {
+    report_semantics_error("Instance missing required 'x' property", context);
+    return false;
+  }
+  CharBuf xbuf = val_to_str(vx);
+
+	tnode_s *vy = bob_str_map_get(obj, M_KEY("y"));
+  if (!vx) {
+    report_semantics_error("Instance missing required 'y' property", context);
+    return false;
+  }
+  CharBuf ybuf = val_to_str(vy);
+
+	tnode_s *vz = bob_str_map_get(obj, M_KEY("z"));
+  if (!vz) {
+    report_semantics_error("Instance missing required 'z' property", context);
+    return false;
+  }
+  CharBuf zbuf = val_to_str(vz);
+
+  CharBuf scalexbuf = get_obj_value_default(obj, M_KEY("scalex"), "1.0");
+
+  CharBuf scaleybuf = get_obj_value_default(obj, M_KEY("scaley"), "1.0");
+
+  CharBuf scalezbuf = get_obj_value_default(obj, M_KEY("scalez"), "1.0");
+
+  tnode_s *mass = bob_str_map_get(obj, M_KEY("mass"));
+  if (!mass) {
+    report_semantics_error("Instance missing required 'mass' property", context);
+    return false;
+  }
+  CharBuf massbuf = val_to_str(mass);
+
+  CharBuf isSubjectToGravitybuf = get_obj_value_default(obj, M_KEY("isSubjectToGravity"), "0");
+
+  CharBuf isStaticbuf = get_obj_value_default(obj, M_KEY("isStatic"), "1");
+
   char *model_name;
   isgen = bob_str_map_get(model->val.obj, OBJ_ISGEN_KEY);
   if (!*isgen) {
@@ -2362,6 +2364,19 @@ char *strip_quotes(char *level_name) {
   }
   nname[i] = '\0';
   return nname;
+}
+
+CharBuf get_obj_value_default(StrMap *obj, const char *key, const char *def) {
+	tnode_s *vnode = bob_str_map_get(obj, key);
+  CharBuf valbuf;
+  if (vnode) {
+    valbuf = val_to_str(vnode);
+  }
+  else {
+    char_buf_init(&valbuf);
+    char_add_s(&valbuf, def);
+  }
+	return valbuf;
 }
 
 void report_syntax_error(const char *message, p_context_s *context) {
