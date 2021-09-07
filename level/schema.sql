@@ -84,9 +84,8 @@ CREATE TABLE range (
   levelID INTEGER,
   steps INTEGER,
   var VARCHAR(1),
-  child INTEGER,
   cache TINYINT,
-  FOREIGN KEY(modelID) REFERENCES model (id),
+  child INTEGER,
 	FOREIGN KEY(levelID) REFERENCES level (id),
   FOREIGN KEY(child) REFERENCES range(id)
 );

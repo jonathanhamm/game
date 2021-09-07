@@ -1597,6 +1597,7 @@ bool emit_level(p_context_s *context, tnode_s *level) {
   emit_code("(id) VALUES (last_insert_rowid());\n", &context->levelcode);
   emit_code("----------------------------------------------------------------------------------\n", &context->levelcode); 
   result = emit_instance_data(context, level, table_name);
+	result = emit_range_data(context, level, table_name);
   free(table_name);
   return result;
 }
@@ -1961,11 +1962,16 @@ void emit_instance_batch(p_context_s *context, char *levelid, tnode_list_s insta
 bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance) {
   bool *isgen;
   StrMap *obj = instance->val.obj;
+	//TODO: type check model
   tnode_s *model = bob_str_map_get(obj, M_KEY("model"));
   if (!model) {
     report_semantics_error("Instance missing required 'model' property", context);
     return false;
   }
+	if (model->type != PTYPE_OBJECT && model->type != PTYPE_MODEL) {
+    report_semantics_error("'model' property must be an object type", context);
+    return false;
+	}
   tnode_s *vx = bob_str_map_get(obj, M_KEY("x"));
 
   if (!vx) {
@@ -2078,17 +2084,9 @@ bool emit_ranges(p_context_s *context, char *levelid, tnode_s *ranges) {
 
 void emit_range_batch(p_context_s *context, char *levelid, tnode_list_s ranges) {
   int i;
-  const bool *isgen;
-
-  emit_code(" INSERT INTO range(levelID, steps, var, child, cache VALUES\n", &context->rangeCode);
-  for (i = 0; i < ranges.size - 1; i++) {
-    emit_code(" \t", &context->rangeCode); 
+  for (i = 0; i < ranges.size; i++) {
     emit_range(context, levelid, ranges.list[i]);
-    emit_code(",\n", &context->rangeCode); 
   }
-  emit_code(" \t", &context->rangeCode); 
-  emit_range(context, levelid, ranges.list[i]);
-  emit_code(";\n", &context->rangeCode); 
 }
 
 char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
@@ -2108,6 +2106,8 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
   }
   CharBuf stepsbuf = val_to_str(steps);
 
+  CharBuf cachebuf = get_obj_value_default(obj, M_KEY("cache"), "1");
+
   //insert nested ranges
   tnode_s *child = bob_str_map_get(obj, M_KEY("child"));
   if (child != NULL) {
@@ -2115,37 +2115,43 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
     if (!emit_range(context, levelid, child)) {
       return false;
     }
-    //insert new range with child
-    emit_code("(", &context->rangeCode);
-    emit_code("(SELECT id FROM ", &context->rangeCode);
+  	emit_code(" INSERT INTO range(levelID, steps, var, cache, child) VALUES\n", &context->rangeCode);
+    emit_code(" \t((SELECT id FROM ", &context->rangeCode);
     emit_code(levelid, &context->rangeCode);
     emit_code("),", &context->rangeCode);
     emit_code(stepsbuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
     emit_code(varbuf.buffer, &context->rangeCode);
+    emit_code(",", &context->rangeCode);
+    emit_code(cachebuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
     emit_code("(SELECT id FROM ", &context->rangeCode);
     emit_code(child_table, &context->rangeCode);
-    emit_code(")),", &context->rangeCode);
+    emit_code("));\n", &context->rangeCode);
   }
   else {
     //insert new range
-    emit_code("(", &context->rangeCode);
-    emit_code("(SELECT id FROM ", &context->rangeCode);
+  	emit_code(" INSERT INTO range(levelID, steps, var, cache, child) VALUES\n", &context->rangeCode);
+    emit_code(" \t((SELECT id FROM ", &context->rangeCode);
     emit_code(levelid, &context->rangeCode);
     emit_code("),", &context->rangeCode);
     emit_code(stepsbuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
     emit_code(varbuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
-    emit_code("NULL),", &context->rangeCode);
+    emit_code(cachebuf.buffer, &context->rangeCode);
+    emit_code(",", &context->rangeCode);
+    emit_code("NULL);\n", &context->rangeCode);
   }
 
   //add temp table for range id
   char *table_name = make_label(context, "range");
-  emit_code("CREATE TEMP TABLE ", &context->rangeCode);
+  emit_code(" CREATE TEMP TABLE ", &context->rangeCode);
   emit_code(table_name, &context->rangeCode);
-  emit_code("(id) VALUES (last_insert_rowid());", &context->rangeCode);
+  emit_code("(id INTEGER PRIMARY KEY);\n", &context->rangeCode);
+	emit_code(" INSERT INTO ", &context->rangeCode); 
+	emit_code(table_name, &context->rangeCode);
+	emit_code(" VALUES (last_insert_rowid());\n", &context->rangeCode);
 
   //insert lazy instances
   tnode_s *instances = bob_str_map_get(obj, M_KEY("instances"));
@@ -2178,9 +2184,8 @@ bool emit_lazy_instances(p_context_s *context, char *levelid, char *rangeid, tno
 
 void emit_lazy_instance_batch(p_context_s *context, char *levelid, char *rangeid, tnode_list_s lazy_instances) {
   int i; 
-  const bool *isgen;
 
-  emit_code(" INSERT INTO lazy_instance(modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic) VALUES\n", 
+  emit_code(" INSERT INTO lazy_instance(modelID, levelID, rangeID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic) VALUES\n", 
 		&context->lazyinstancecode);
   for (i = 0; i < lazy_instances.size - 1; i++) {
     emit_code(" \t", &context->lazyinstancecode);
