@@ -2115,10 +2115,8 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
     if (!emit_range(context, levelid, child)) {
       return false;
     }
-  	emit_code(" INSERT INTO range(levelID, steps, var, cache, child) VALUES\n", &context->rangeCode);
-    emit_code(" \t((SELECT id FROM ", &context->rangeCode);
-    emit_code(levelid, &context->rangeCode);
-    emit_code("),", &context->rangeCode);
+  	emit_code(" INSERT INTO range(steps, var, cache, child) VALUES\n", &context->rangeCode);
+    emit_code(" \t(", &context->rangeCode);
     emit_code(stepsbuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
     emit_code(varbuf.buffer, &context->rangeCode);
@@ -2131,10 +2129,8 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
   }
   else {
     //insert new range
-  	emit_code(" INSERT INTO range(levelID, steps, var, cache, child) VALUES\n", &context->rangeCode);
-    emit_code(" \t((SELECT id FROM ", &context->rangeCode);
-    emit_code(levelid, &context->rangeCode);
-    emit_code("),", &context->rangeCode);
+  	emit_code(" INSERT INTO range(steps, var, cache, child) VALUES\n", &context->rangeCode);
+    emit_code(" \t(", &context->rangeCode);
     emit_code(stepsbuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
     emit_code(varbuf.buffer, &context->rangeCode);

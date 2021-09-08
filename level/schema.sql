@@ -61,7 +61,6 @@ CREATE TABLE instance (
 	FOREIGN KEY(levelID) REFERENCES level (id)
 );
 
-
 CREATE TABLE lazy_instance (
 	modelID INTEGER,
 	levelID INTEGER,
@@ -81,13 +80,13 @@ CREATE TABLE lazy_instance (
 );
 
 CREATE TABLE range (
-  levelID INTEGER,
+	id INTEGER,
   steps INTEGER,
   var VARCHAR(1),
   cache TINYINT,
   child INTEGER,
-	FOREIGN KEY(levelID) REFERENCES level (id),
-  FOREIGN KEY(child) REFERENCES range(id)
+  FOREIGN KEY(child) REFERENCES range(id),
+	PRIMARY KEY(id)
 );
 
 CREATE TABLE level (
