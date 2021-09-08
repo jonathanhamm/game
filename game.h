@@ -2,7 +2,6 @@
 #define __game_h__
 
 #include "camera.h"
-#include "instance_plane.h"
 #include "common/data-structures.h"
 
 typedef struct Level Level;
@@ -12,7 +11,6 @@ struct Level {
 	Camera camera;
   vec3 ambient_gravity;
 	PointerVector instances;
-  PointerVector instance_planes;
   PointerVector gravityObjects;
 };
 

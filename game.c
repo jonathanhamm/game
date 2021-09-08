@@ -15,7 +15,6 @@
 
 static void level_render(GLFWwindow *window, Level *level);
 static void render_instance(Instance *instance, Camera *camera);
-static void render_instance_plane(InstancePlane *ip, Camera *camera);
 static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
 static Instance *spawn_instance(Level *level);
 
@@ -62,17 +61,9 @@ void render_instance(Instance *instance, Camera *camera) {
 	glUseProgram(0);
 }
 
-void render_instance_plane(InstancePlane *ip, Camera *camera) {
-
-}
-
 void level_render(GLFWwindow *window, Level *level) {
 	int i;
 
-  for (i = 0; i < level->instance_planes.size; i++) {
-    InstancePlane *ip = level->instance_planes.buffer[i];
-    render_instance_plane(ip, &level->camera);
-  }
 	for (i = 0; i < level->instances.size; i++) {
 		Instance *instance = level->instances.buffer[i];
 		render_instance(level->instances.buffer[i], &level->camera);
