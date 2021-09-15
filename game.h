@@ -11,6 +11,7 @@ struct Level {
 	Camera camera;
   vec3 ambient_gravity;
 	PointerVector instances;
+	PointerVector ranges;
   PointerVector gravityObjects;
 };
 

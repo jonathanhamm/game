@@ -8,6 +8,8 @@
 
 typedef struct Model Model;
 typedef struct Instance Instance;
+typedef struct LazyInstance LazyInstance;
+typedef struct Range Range;
 
 struct Model {
 	GlProgram *program;
@@ -33,6 +35,34 @@ struct Instance {
 	PointerVector *collision_space;
 	PointerVector *gravity_space;
   PointerList *impulse;
+};
+
+struct LazyInstance {
+	Model *model;
+	float mass;
+  bool isSubjectToGravity;
+  bool isStatic;
+	char *px;
+	char *py;
+	char *pz;
+	vec3 velocity;
+	vec3 acceleration;
+  vec3 force;
+	char *scalex;
+	char *scaley;
+	char *scalez;
+	vec3 rotation;
+	PointerVector *collision_space;
+	PointerVector *gravity_space;
+  PointerList *impulse;
+};
+
+struct Range {
+	int steps;
+	char var;
+	bool cache;
+	Range *child;
+	PointerVector lazyinstances;
 };
 
 extern Model *get_model_test1(void);

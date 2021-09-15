@@ -63,7 +63,6 @@ CREATE TABLE instance (
 
 CREATE TABLE lazy_instance (
 	modelID INTEGER,
-	levelID INTEGER,
   rangeID INTEGER,
 	vx VARCHAR(64),
 	vy VARCHAR(64),
@@ -75,17 +74,18 @@ CREATE TABLE lazy_instance (
   isSubjectToGravity TINYINT,
   isStatic TINYINT,
 	FOREIGN KEY(modelID) REFERENCES model (id),
-	FOREIGN KEY(levelID) REFERENCES level (id),
   FOREIGN KEY(rangeID) REFERENCES range (id)
 );
 
 CREATE TABLE range (
 	id INTEGER,
+	levelID INTEGER,
   steps INTEGER,
   var VARCHAR(1),
   cache TINYINT,
   child INTEGER,
   FOREIGN KEY(child) REFERENCES range(id),
+	FOREIGN KEY(levelID) REFERENCES level (id),
 	PRIMARY KEY(id)
 );
 

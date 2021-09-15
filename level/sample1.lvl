@@ -254,9 +254,9 @@
           out vec4 finalColor;
 
           void main() {
-              //finalColor = texture(tex, fragTexCoord);
+              finalColor = texture(tex, fragTexCoord);
               //finalColor =  texture(tex, fragTexCoord) * vec4(0.5, 0.5, 1.0, 1.0);
-              finalColor = vec4(fragTexCoord, 0, 1) * vec4(0.5, 0.5, 1.0, 1.0);
+              //finalColor = vec4(fragTexCoord, 0, 1) * vec4(0.5, 0.5, 1.0, 1.0);
           }
         "
     }
@@ -290,8 +290,8 @@
 				"var": "y",
 				"cache": 1,
 				"instances": [
-					{"x": "1.0*x", "y": "1.0", "z": "0.0", "mass": 1.0, "model": m1},
-					{"x": "1.0*x", "y": "1.0", "z": "0.0", "mass": 1.0, "model": m1}
+					{"x": "1.0*y", "y": "1.0", "z": "0.0", "mass": 1.0, "model": m1},
+					{"x": "1.0*y", "y": "1.0", "z": "0.0", "mass": 1.0, "model": m1}
 				]
 			},
 			"instances": [

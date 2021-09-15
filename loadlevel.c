@@ -1,5 +1,5 @@
-#include "log.h"
-#include "loadlevel.h"
+#include "log.h" 
+#include "loadlevel.h" 
 #include "models.h"
 #include "meshes.h"
 #include "common/errcodes.h"
@@ -17,7 +17,8 @@
 struct bob_db_s {
   sqlite3 *db;
   sqlite3_stmt *qambientgravity;
-  sqlite3_stmt *qlevel;
+  sqlite3_stmt *qinstance;
+  sqlite3_stmt *qrange;
   sqlite3_stmt *qmodel;
   sqlite3_stmt *qmesh;
   sqlite3_stmt *qshader;
@@ -30,10 +31,16 @@ const char *level_ambient_gravity_qstr =
   "SELECT ambientGravityX, ambientGravityY, ambientGravityZ"
   " FROM level"
   " WHERE name=?";
-const char *level_qstr = 
+const char *instance_qstr = 
   "SELECT modelID, levelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic"
   " FROM level AS l JOIN instance AS i"
   " ON l.id=i.levelID"
+  " WHERE l.name=?";
+const char *range_qstr =
+  "SELECT steps, var, cache, child, modelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic"
+  " FROM level AS l"
+	" JOIN range AS r ON l.id=r.levelID"
+	" JOIN lazy_instance AS i ON i.rangeID=r.id"
   " WHERE l.name=?";
 const char *model_qstr = 
   "SELECT meshID, programID, textureID, hasUV"
@@ -56,6 +63,8 @@ static sqlite3_stmt *query_level;
 
 static int prepare_queries(bob_db_s *bdb);
 static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name);
+static int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name);
+static int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, const char *name);
 static Model *bob_dbload_model(bob_db_s *bdb, int modelID);
 static void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID);
 static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
@@ -101,14 +110,25 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   rc = bob_dbload_ambient_gravity(lvl, bdb, name);
   if (rc < 0)
     return NULL;
+	rc = bob_dbload_instances(lvl, bdb, name);
+	if (rc < 0)
+		return NULL;
+	rc = bob_dbload_lazy_instances(lvl, bdb, name);
+	if (rc < 0)
+		return NULL;
+  return lvl;
+}
 
-  rc = sqlite3_bind_text(bdb->qlevel, 1, name, -1, NULL);
-  if (rc != SQLITE_OK) {
-    log_error("failed to bind level name parameter to level query");
-    return NULL;
-  }
+int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name) {
+	int rc;
 
   log_debug("loading level instances");
+
+  rc = sqlite3_bind_text(bdb->qinstance, 1, name, -1, NULL);
+  if (rc != SQLITE_OK) {
+    log_error("failed to bind level name parameter to level query");
+    return -1;
+  }
 
   int modelID, levelID;
   double vx, vy, vz, scalex, scaley, scalez, mass;
@@ -118,24 +138,24 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
   pointer_vector_init(&lvl->instances);
   pointer_vector_init(&lvl->gravityObjects);
   while (1) {
-    rc = sqlite3_step(bdb->qlevel);
+    rc = sqlite3_step(bdb->qinstance);
     if (rc == SQLITE_ROW) {
-      modelID = sqlite3_column_int(bdb->qlevel, 0);
-      levelID = sqlite3_column_int(bdb->qlevel, 1);
-      vx = sqlite3_column_double(bdb->qlevel, 2);
-      vy = sqlite3_column_double(bdb->qlevel, 3);
-      vz = sqlite3_column_double(bdb->qlevel, 4);
-      scalex = sqlite3_column_double(bdb->qlevel, 5);
-      scaley = sqlite3_column_double(bdb->qlevel, 6);
-      scalez = sqlite3_column_double(bdb->qlevel, 7);
-      mass = sqlite3_column_double(bdb->qlevel, 8);
-      isSubjectToGravity = sqlite3_column_int(bdb->qlevel, 9);
-      isStatic = sqlite3_column_int(bdb->qlevel, 10);
+      modelID = sqlite3_column_int(bdb->qinstance, 0);
+      levelID = sqlite3_column_int(bdb->qinstance, 1);
+      vx = sqlite3_column_double(bdb->qinstance, 2);
+      vy = sqlite3_column_double(bdb->qinstance, 3);
+      vz = sqlite3_column_double(bdb->qinstance, 4);
+      scalex = sqlite3_column_double(bdb->qinstance, 5);
+      scaley = sqlite3_column_double(bdb->qinstance, 6);
+      scalez = sqlite3_column_double(bdb->qinstance, 7);
+      mass = sqlite3_column_double(bdb->qinstance, 8);
+      isSubjectToGravity = sqlite3_column_int(bdb->qinstance, 9);
+      isStatic = sqlite3_column_int(bdb->qinstance, 10);
       model = bob_dbload_model(bdb, modelID);
       inst = calloc(1, sizeof *inst);
       if (!inst) {
         log_error("failed to allocate memory for instance");
-        return NULL;
+        return -1;
       }
       if (isSubjectToGravity) {
         pointer_vector_add(&lvl->gravityObjects, inst);
@@ -164,11 +184,84 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
     }
     else {
       log_error("Unexpected result from database level query: %d\n", rc);
-      return NULL;
+      return -1;
     }
   }
-  sqlite3_reset(bdb->qlevel);
-  return lvl;
+  sqlite3_reset(bdb->qinstance);
+	return 0;
+}
+
+
+int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, const char *name) {
+	int rc;
+  log_debug("loading level lazy instances");
+
+  rc = sqlite3_bind_text(bdb->qrange, 1, name, -1, NULL);
+  if (rc != SQLITE_OK) {
+    log_error("failed to bind level name parameter to level query");
+    return -1;
+  }
+
+  /* int modelID, levelID;
+  char *vx, *vy, *vz, *scalex, *scaley, *scalez, mass;
+  bool isSubjectToGravity, isStatic;
+  Instance *inst;
+  Model *model;
+  pointer_vector_init(&lvl->instances);
+  pointer_vector_init(&lvl->gravityObjects);
+  while (1) {
+    rc = sqlite3_step(bdb->qinstance);
+    if (rc == SQLITE_ROW) {
+      modelID = sqlite3_column_int(bdb->qinstance, 0);
+      levelID = sqlite3_column_int(bdb->qinstance, 1);
+      vx = sqlite3_column_double(bdb->qinstance, 2);
+      vy = sqlite3_column_double(bdb->qinstance, 3);
+      vz = sqlite3_column_double(bdb->qinstance, 4);
+      scalex = sqlite3_column_double(bdb->qinstance, 5);
+      scaley = sqlite3_column_double(bdb->qinstance, 6);
+      scalez = sqlite3_column_double(bdb->qinstance, 7);
+      mass = sqlite3_column_double(bdb->qinstance, 8);
+      isSubjectToGravity = sqlite3_column_int(bdb->qinstance, 9);
+      isStatic = sqlite3_column_int(bdb->qinstance, 10);
+      model = bob_dbload_model(bdb, modelID);
+      inst = calloc(1, sizeof *inst);
+      if (!inst) {
+        log_error("failed to allocate memory for instance");
+        return -1;
+      }
+      if (isSubjectToGravity) {
+        pointer_vector_add(&lvl->gravityObjects, inst);
+      }
+      inst->impulse = NULL;
+      inst->model = model;
+      inst->pos[0] = vx;
+      inst->pos[1] = vy;
+      inst->pos[2] = vz;
+      inst->scale[0] = scalex;
+      inst->scale[1] = scaley;
+      inst->scale[2] = scalez;
+      inst->mass = mass;
+      inst->isSubjectToGravity = isSubjectToGravity;
+      inst->isStatic = isStatic;
+      glm_vec3_zero(inst->velocity);
+      glm_vec3_zero(inst->acceleration);
+      glm_vec3_zero(inst->force);
+      inst->rotation[0] = 2;
+      inst->rotation[1] = 1;
+      inst->rotation[0] = 0;
+      pointer_vector_add(&lvl->instances, inst);
+    }
+    else if (rc == SQLITE_DONE) {
+      break;
+    }
+    else {
+      log_error("Unexpected result from database level query: %d\n", rc);
+      return -1;
+    }
+  }
+	*/
+  sqlite3_reset(bdb->qrange);
+	return 0;
 }
 
 int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name) {
@@ -210,9 +303,14 @@ int prepare_queries(bob_db_s *bdb) {
     log_error("failed to prepare ambientGravity query");
     return -1;
   }
-  rc = sqlite3_prepare_v2(bdb->db, level_qstr, -1, &bdb->qlevel, 0);
+  rc = sqlite3_prepare_v2(bdb->db, instance_qstr, -1, &bdb->qinstance, 0);
   if (rc != SQLITE_OK) {
-    log_error("failed to prepare level query");
+    log_error("failed to prepare instance query");
+    return -1;
+  }
+  rc = sqlite3_prepare_v2(bdb->db, range_qstr, -1, &bdb->qrange, 0);
+  if (rc != SQLITE_OK) {
+    log_error("failed to prepare lazy instance query");
     return -1;
   }
   rc = sqlite3_prepare_v2(bdb->db, model_qstr, -1, &bdb->qmodel, 0);

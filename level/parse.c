@@ -114,9 +114,9 @@ static bool emit_range_data(p_context_s *context, tnode_s *level, char *levelid)
 static bool emit_ranges(p_context_s *context, char *levelid, tnode_s *ranges);
 static void emit_range_batch(p_context_s *context, char *levelid, tnode_list_s ranges);
 static char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node);
-static bool emit_lazy_instances(p_context_s *context, char *levelid, char *rangeid, tnode_s *lazy_instances);
-static void emit_lazy_instance_batch(p_context_s *context, char *levelid, char *rangeid, tnode_list_s lazy_instances);
-static bool emit_lazy_instance(p_context_s *context, char *levelid, char *rangeid, tnode_s *node);
+static bool emit_lazy_instances(p_context_s *context, char *rangeid, tnode_s *lazy_instances);
+static void emit_lazy_instance_batch(p_context_s *context, char *rangeid, tnode_list_s lazy_instances);
+static bool emit_lazy_instance(p_context_s *context, char *rangeid, tnode_s *node);
 static bool emit_model(tnode_s *model, p_context_s *context);
 static bool emit_mesh(tnode_s *mesh, p_context_s *context);
 static bool emit_program(tnode_s *program, p_context_s *context);
@@ -2115,8 +2115,10 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
     if (!emit_range(context, levelid, child)) {
       return false;
     }
-  	emit_code(" INSERT INTO range(steps, var, cache, child) VALUES\n", &context->rangeCode);
-    emit_code(" \t(", &context->rangeCode);
+  	emit_code(" INSERT INTO range(levelID, steps, var, cache, child) VALUES\n", &context->rangeCode);
+    emit_code(" \t((SELECT id FROM ", &context->rangeCode);
+		emit_code(levelid, &context->rangeCode);
+		emit_code("),", &context->rangeCode);
     emit_code(stepsbuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
     emit_code(varbuf.buffer, &context->rangeCode);
@@ -2129,8 +2131,10 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
   }
   else {
     //insert new range
-  	emit_code(" INSERT INTO range(steps, var, cache, child) VALUES\n", &context->rangeCode);
-    emit_code(" \t(", &context->rangeCode);
+  	emit_code(" INSERT INTO range(levelID, steps, var, cache, child) VALUES\n", &context->rangeCode);
+    emit_code(" \t((SELECT id FROM ", &context->rangeCode);
+		emit_code(levelid, &context->rangeCode);
+		emit_code("),", &context->rangeCode);
     emit_code(stepsbuf.buffer, &context->rangeCode);
     emit_code(",", &context->rangeCode);
     emit_code(varbuf.buffer, &context->rangeCode);
@@ -2156,18 +2160,18 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
     return false;
   }
 
-  emit_lazy_instances(context, levelid, table_name, instances);
+  emit_lazy_instances(context, table_name, instances);
 
   return table_name;
 }
 
-bool emit_lazy_instances(p_context_s *context, char *levelid, char *rangeid, tnode_s *lazy_instances) {
+bool emit_lazy_instances(p_context_s *context, char *rangeid, tnode_s *lazy_instances) {
   int i;
 
   if (lazy_instances->type == PTYPE_ARRAY) {
     tnode_arraytype_val_s atval = lazy_instances->val.atval;
     if (atval.type == PTYPE_OBJECT || atval.type == PTYPE_INSTANCE) {
-      emit_lazy_instance_batch(context, levelid, rangeid, atval.arr);
+      emit_lazy_instance_batch(context, rangeid, atval.arr);
     } 
     else {
       report_semantics_error("Lazy Instances must be an array of objects or lazy instance types", context);
@@ -2178,22 +2182,22 @@ bool emit_lazy_instances(p_context_s *context, char *levelid, char *rangeid, tno
   }
 }
 
-void emit_lazy_instance_batch(p_context_s *context, char *levelid, char *rangeid, tnode_list_s lazy_instances) {
+void emit_lazy_instance_batch(p_context_s *context, char *rangeid, tnode_list_s lazy_instances) {
   int i; 
 
-  emit_code(" INSERT INTO lazy_instance(modelID, levelID, rangeID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic) VALUES\n", 
+  emit_code(" INSERT INTO lazy_instance(modelID, rangeID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic) VALUES\n", 
 		&context->lazyinstancecode);
   for (i = 0; i < lazy_instances.size - 1; i++) {
     emit_code(" \t", &context->lazyinstancecode);
-    emit_lazy_instance(context, levelid, rangeid, lazy_instances.list[i]);
+    emit_lazy_instance(context, rangeid, lazy_instances.list[i]);
     emit_code(",\n", &context->lazyinstancecode);
   }
   emit_code(" \t", &context->lazyinstancecode);
-  emit_lazy_instance(context, levelid, rangeid, lazy_instances.list[i]);
+  emit_lazy_instance(context, rangeid, lazy_instances.list[i]);
   emit_code(";\n", &context->lazyinstancecode);
 }
 
-bool emit_lazy_instance(p_context_s *context, char *levelid, char *rangeid, tnode_s *lazy_instance) {
+bool emit_lazy_instance(p_context_s *context, char *rangeid, tnode_s *lazy_instance) {
   bool *isgen;
   StrMap *obj = lazy_instance->val.obj;
   tnode_s *model = bob_str_map_get(obj, M_KEY("model"));
@@ -2253,8 +2257,6 @@ bool emit_lazy_instance(p_context_s *context, char *levelid, char *rangeid, tnod
 
   emit_code("((SELECT id FROM ", &context->lazyinstancecode);
   emit_code(model_name, &context->lazyinstancecode);
-  emit_code("),(SELECT id FROM ", &context->lazyinstancecode);
-  emit_code(levelid, &context->lazyinstancecode);
   emit_code("),(SELECT id FROM ", &context->lazyinstancecode);
 	emit_code(rangeid, &context->lazyinstancecode);
 	emit_code("),", &context->lazyinstancecode);
