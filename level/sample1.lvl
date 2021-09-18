@@ -212,7 +212,7 @@
     ]
   }
   Texture texture := {
-    "path": "textures/pge_icon.png"
+    "path": "textures/basic1.png"
   }
   Program program1 := {
     "vertex": {

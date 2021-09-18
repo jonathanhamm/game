@@ -222,7 +222,6 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			
 			log_debug("loaded range with steps: %d %d", modelId, steps);
 
-
 			range = calloc(1, sizeof *range);
 			if (!range) {
         log_error("failed to allocate memory for range");
@@ -239,7 +238,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 				return -1;
 			}
 		}
-		else if (rc = SQLITE_DONE) {
+		else if (rc == SQLITE_DONE) {
 			break;	
 		}
 		else {
@@ -253,20 +252,45 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	return 0;
 }
 
-int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeId, PointerVector *pv) {
-	/*
-			modelId = sqlite3_column_int(bdb->qrange, 5);
-			vx = sqlite3_column_text(bdb->qrange, 6);
-			vy = sqlite3_column_text(bdb->qrange, 7);
-			vz = sqlite3_column_text(bdb->qrange, 8);
-			scalex = sqlite3_column_text(bdb->qrange, 9);
-			scaley = sqlite3_column_text(bdb->qrange, 10);
-			scalez = sqlite3_column_text(bdb->qrange, 11);
-			isSubjectToGravity = sqlite3_column_int(bdb->qrange, 12);
-			isStatic = sqlite3_column_int(bdb->qrange, 13);
+int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVector *pv) {
+  int rc, modelID;
+  const char *vx, *vy, *vz, *scalex, *scaley, *scalez;
+  float mass;
+  bool isSubjectToGravity, isStatic;
+  Model *model;
 
+	rc = sqlite3_bind_int(bdb->qlazyinstance, 1, rangeID);
+	if (rc != SQLITE_OK) {
+    log_error("failed to bind rangeId parameter to lazy instance query: errno %d", rc);
+    return -1;
+	}
+
+  while (1) {
+    rc = sqlite3_step(bdb->qlazyinstance);
+    if (rc == SQLITE_ROW) {
+      modelID = sqlite3_column_int(bdb->qrange, 5);
+      vx = sqlite3_column_text(bdb->qrange, 6);
+      vy = sqlite3_column_text(bdb->qrange, 7);
+      vz = sqlite3_column_text(bdb->qrange, 8);
+      scalex = sqlite3_column_text(bdb->qrange, 9);
+      scaley = sqlite3_column_text(bdb->qrange, 10);
+      scalez = sqlite3_column_text(bdb->qrange, 11);
+      mass = sqlite3_column_double(bdb->qrange, 11);
+      isSubjectToGravity = sqlite3_column_int(bdb->qrange, 12);
+      isStatic = sqlite3_column_int(bdb->qrange, 13);
       model = bob_dbload_model(bdb, modelID);
-	*/
+    }
+    else if (rc == SQLITE_DONE) {
+      break;
+    }
+    else {
+      log_error("Unexpected result from database lazy instance query: %d\n", rc);
+      return -1;
+    }
+  }
+
+  sqlite3_reset(bdb->qlazyinstance);
+
 	return 0;
 }
 
