@@ -1,6 +1,9 @@
 #include "lazy_instance_engine.h"
 
+#include "all.h"
+
 #include <ctype.h>
+#include <stdlib.h>
 
 
 #define LZTOK_LEX_LEN 64
@@ -23,11 +26,14 @@ struct lztok_s {
 	lztok_s *next;
 };
 
+static lztok_s *lz_add_tok(lztok_s **curr, char *lexeme);
+
 double lazy_epxression_compute(char *src, double val) {
 	return 0;
 }
 
 lztok_s *lex(char *src) {
+	char bck;
 	char *fptr = src, *bptr = src;
 
 	while (*fptr) {
@@ -52,10 +58,29 @@ lztok_s *lex(char *src) {
 				fptr++;
 				break;
 			default:
-				fptr++;
+				if (isdigit(*fptr)) {
+					bptr = fptr;
+					while (isdigit(*++fptr));
+					bck = *fptr;
+					*fptr = '\0';
+				} 
+				else if (isalpha(*fptr)) {
+				}
+				else {
+				}
 				break;
 		}
 	}
+
+}
+
+void lz_add_tok(lztok_s **curr, char *lexeme) {
+	lztok_s *ntok = malloc(sizeof *ntok);
+	if (!ntok) {
+		log_error("failed to allocate memory for new lz token");
+		//TODO: trap
+	}
+	ntok->
 
 }
 
