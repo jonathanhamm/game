@@ -16,6 +16,8 @@ enum lztok_type_e {
 	LZTYPE_IDENT,
 	LZTYPE_ADDOP,
 	LZTYPE_MULOP,
+  LZTYPE_LPAREN,
+  LZTYPE_RPAREN,
 	LZTYPE_EOF
 };
 
@@ -31,16 +33,65 @@ struct lztok_list_s {
 };
 
 static void lz_add_tok(lztok_list_s *list, char *lexeme, lztok_type_e type);
-static lztok_s *lex(char *src);
+static lztok_list_s lex(char *src);
 static char *dupstr(char *str);
+
+static void parse(lztok_list_s toklist);
+
+static void p_expression(lztok_s **t);
+static void p_expression_(lztok_s **t);
+static void p_term(lztok_s **t);
+static void p_term_(lztok_s **t);
+static void p_factor(lztok_s **t);
+
+/*
+ *
+  
+ <expression> ->
+	<simple_expression> <expression'>
+<expression'> ->
+	relop <simple_expression>
+	|
+	ε	
+
+<simple_expression> ->
+	<sign> <simple_expression>
+	|
+	<term> <simple_expression'>
+    
+<simple_expression'> ->
+	addop <term> <simple_expression'>
+	|
+	ε
+
+<term> ->
+	<factor> <term'>
+
+<term'> ->
+	mulop <factor> <term'>
+	|
+	ε
+
+<factor> ->
+	|
+	num
+  |
+  ident
+	|
+    |
+    \( <expression> \)
+
+ 
+ */
 
 double lazy_epxression_compute(char *src, double val) {
   char *nsrc = dupstr(src);
-  lztok_s *toklist = lex(nsrc);
+  lztok_list_s toklist = lex(nsrc);
+  parse(toklist);
 	return 0;
 }
 
-lztok_s *lex(char *src) {
+lztok_list_s lex(char *src) {
 	char bck;
 	char *fptr = src, *bptr;
 
@@ -71,10 +122,21 @@ lztok_s *lex(char *src) {
         lz_add_tok(&toklist, "/", LZTYPE_MULOP);
 				fptr++;
 				break;
+      case '(':
+        lz_add_tok(&toklist, "(", LZTYPE_LPAREN);
+				fptr++;
+				break;
+      case ')':
+        lz_add_tok(&toklist, ")", LZTYPE_RPAREN);
+				fptr++;
+        break;
 			default:
 				if (isdigit(*fptr)) {
 					bptr = fptr;
 					while (isdigit(*++fptr));
+          if (*fptr == '.') {
+            while (isdigit(*++fptr));
+          }
 					bck = *fptr;
 					*fptr = '\0';
           lz_add_tok(&toklist, bptr, LZTYPE_NUM);
@@ -95,12 +157,8 @@ lztok_s *lex(char *src) {
 				break;
 		}
 	}
-
-  lztok_s *t = toklist.head;
-  while (t) {
-    log_info("parsed token: %s - %d", t->lexeme, t->type);
-    t = t->next;
-  }
+  lz_add_tok(&toklist, "$", LZTYPE_EOF);
+  return toklist;
 }
 
 void lz_add_tok(lztok_list_s *list, char *lexeme, lztok_type_e type) {
@@ -132,4 +190,83 @@ char *dupstr(char *str) {
   return nstr;
 }
 
+void parse(lztok_list_s toklist) {
+  lztok_s *t = toklist.head;
+  p_expression(&t);
+  if (t->type != LZTYPE_EOF) {
+    log_error("Syntax Error: Expected end of expression, but got %s", t->lexeme);
+  }
+}
+
+void p_expression(lztok_s **t) {
+  switch ((*t)->type) {
+    case LZTYPE_NUM:
+    case LZTYPE_IDENT:
+    case LZTYPE_LPAREN:
+      p_term(t);
+      p_expression_(t);
+      break;
+    case LZTYPE_ADDOP:
+      *t = (*t)->next;
+      p_expression(t);
+      break;
+    default:
+      log_error("Syntax Error: expected number, +, -, '(', or variable reference, but got %s", (*t)->lexeme);
+      break;
+  }
+}
+
+void p_expression_(lztok_s **t) {
+  if ((*t)->type == LZTYPE_ADDOP) {
+    *t = (*t)->next;
+    p_term(t);
+    p_expression_(t);
+  }
+}
+
+void  p_term(lztok_s **t) {
+  switch ((*t)->type) {
+    case LZTYPE_NUM:
+    case LZTYPE_IDENT:
+    case LZTYPE_LPAREN:
+      p_factor(t);
+      p_term_(t);
+      break;
+    default:
+      log_error("Syntax Error: expected number variable reference, or '(', but got %s", (*t)->lexeme);
+      break;
+  }
+}
+
+void p_term_(lztok_s **t) {
+  if ((*t)->type == LZTYPE_MULOP) {
+    *t = (*t)->next;
+    p_factor(t);
+    p_term_(t);
+  }
+}
+
+void p_factor(lztok_s **t) {
+
+  switch ((*t)->type) {
+    case LZTYPE_NUM:
+      *t = (*t)->next;
+      break;
+    case LZTYPE_IDENT:
+      *t = (*t)->next;
+      break;
+    case LZTYPE_LPAREN:
+      *t = (*t)->next;
+      p_expression(t);
+      if ((*t)->type == LZTYPE_RPAREN) {
+        *t = (*t)->next;
+      } else {
+        log_error("Syntax Error: expected ')' but got %s", (*t)->lexeme);
+      }
+      break;
+    default:
+        log_error("Syntax Error: expected number, variable reference, or '(' but got %s", (*t)->lexeme);
+      break;
+  }
+}
 
