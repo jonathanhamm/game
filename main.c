@@ -7,7 +7,8 @@
 int main(void) {
 	log_init(stdout);
 	//bob_start();
-  lazy_epxression_compute("a+b+(((a+b)+c)+1+3+1.3330)*4/(1+3)", 1.0);
+  double result = lazy_epxression_compute(NULL, "1+3+(((4+1)+1)+1+3+1.3330)*4/(1+3)");
+	printf("result: %f\n", result);
 	log_end();
 	return 0;
 }

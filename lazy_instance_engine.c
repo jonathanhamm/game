@@ -1,8 +1,10 @@
 #include "lazy_instance_engine.h"
 #include "log.h"
+#include <stdint.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define LZTOK_LEX_LEN 64
 
@@ -36,59 +38,19 @@ static void lz_add_tok(lztok_list_s *list, char *lexeme, lztok_type_e type);
 static lztok_list_s lex(char *src);
 static char *dupstr(char *str);
 
-static void parse(lztok_list_s toklist);
+static double parse(lztok_list_s toklist, StrMap *symtable);
 
-static void p_expression(lztok_s **t);
-static void p_expression_(lztok_s **t);
-static void p_term(lztok_s **t);
-static void p_term_(lztok_s **t);
-static void p_factor(lztok_s **t);
+static double p_expression(lztok_s **t, StrMap *symtable);
+static void p_expression_(lztok_s **t, double *exp, StrMap *symtable);
+static double p_term(lztok_s **t, StrMap *symtable);
+static void p_term_(lztok_s **t, double *term, StrMap *symtable);
+static double p_factor(lztok_s **t, StrMap *symtable);
+static int lookup_iterator_value(const char *key, StrMap *symtable);
 
-/*
- *
-  
- <expression> ->
-	<simple_expression> <expression'>
-<expression'> ->
-	relop <simple_expression>
-	|
-	ε	
-
-<simple_expression> ->
-	<sign> <simple_expression>
-	|
-	<term> <simple_expression'>
-    
-<simple_expression'> ->
-	addop <term> <simple_expression'>
-	|
-	ε
-
-<term> ->
-	<factor> <term'>
-
-<term'> ->
-	mulop <factor> <term'>
-	|
-	ε
-
-<factor> ->
-	|
-	num
-  |
-  ident
-	|
-    |
-    \( <expression> \)
-
- 
- */
-
-double lazy_epxression_compute(char *src, double val) {
+double lazy_epxression_compute(StrMap *symtable, char *src) {
   char *nsrc = dupstr(src);
   lztok_list_s toklist = lex(nsrc);
-  parse(toklist);
-	return 0;
+  return parse(toklist, symtable);
 }
 
 lztok_list_s lex(char *src) {
@@ -190,74 +152,104 @@ char *dupstr(char *str) {
   return nstr;
 }
 
-void parse(lztok_list_s toklist) {
+double parse(lztok_list_s toklist, StrMap *symtable) {
   lztok_s *t = toklist.head;
-  p_expression(&t);
+  p_expression(&t, symtable);
   if (t->type != LZTYPE_EOF) {
     log_error("Syntax Error: Expected end of expression, but got %s", t->lexeme);
   }
 }
 
-void p_expression(lztok_s **t) {
+double p_expression(lztok_s **t, StrMap *symtable) {
+	double val;
+	lztok_s *op;
+
   switch ((*t)->type) {
     case LZTYPE_NUM:
     case LZTYPE_IDENT:
     case LZTYPE_LPAREN:
-      p_term(t);
-      p_expression_(t);
+      val = p_term(t, symtable);
+      p_expression_(t, &val, symtable);
       break;
     case LZTYPE_ADDOP:
+			op = *t;
       *t = (*t)->next;
-      p_expression(t);
+      val = p_expression(t, symtable);
+			if (*op->lexeme == '-')
+				val = -val;
       break;
     default:
-      log_error("Syntax Error: expected number, +, -, '(', or variable reference, but got %s", (*t)->lexeme);
+      log_error("Syntax Error: expected number, +, -, '(', or variable reference, but got %s", 
+					(*t)->lexeme);
+			val = 0.0;
       break;
   }
+	return val;
 }
 
-void p_expression_(lztok_s **t) {
+void p_expression_(lztok_s **t, double *exp, StrMap *symtable) {
+	lztok_s *op;
+	double term;
+
   if ((*t)->type == LZTYPE_ADDOP) {
+		op = *t;
     *t = (*t)->next;
-    p_term(t);
-    p_expression_(t);
+    term = p_term(t, symtable);
+		if (*op->lexeme == '+')
+			*exp += term;
+		else
+			*exp -= term;
+    p_expression_(t, exp, symtable);
   }
 }
 
-void  p_term(lztok_s **t) {
+double p_term(lztok_s **t, StrMap *symtable) {
+	double val;
+
   switch ((*t)->type) {
     case LZTYPE_NUM:
     case LZTYPE_IDENT:
     case LZTYPE_LPAREN:
-      p_factor(t);
-      p_term_(t);
+      val = p_factor(t, symtable);
+      p_term_(t, &val, symtable);
       break;
     default:
       log_error("Syntax Error: expected number variable reference, or '(', but got %s", (*t)->lexeme);
+			val = 0.0;
       break;
   }
+	return val;
 }
 
-void p_term_(lztok_s **t) {
+void p_term_(lztok_s **t, double *term, StrMap *symtable) {
+	double factor;
+	lztok_s *op;
   if ((*t)->type == LZTYPE_MULOP) {
+		op = *t;
     *t = (*t)->next;
-    p_factor(t);
-    p_term_(t);
+    factor = p_factor(t, symtable);
+		if (*op->lexeme == '*')
+			*term = *term * factor;
+		else
+			*term = *term / factor;
+    p_term_(t, term, symtable);
   }
 }
 
-void p_factor(lztok_s **t) {
-
+double p_factor(lztok_s **t, StrMap *symtable) {
+	double value;
   switch ((*t)->type) {
     case LZTYPE_NUM:
+			value = atof((*t)->lexeme);
       *t = (*t)->next;
-      break;
+			break;
     case LZTYPE_IDENT:
+			value = (double)lookup_iterator_value((*t)->lexeme, symtable);
       *t = (*t)->next;
       break;
     case LZTYPE_LPAREN:
       *t = (*t)->next;
-      p_expression(t);
+      value = p_expression(t, symtable);
       if ((*t)->type == LZTYPE_RPAREN) {
         *t = (*t)->next;
       } else {
@@ -265,8 +257,18 @@ void p_factor(lztok_s **t) {
       }
       break;
     default:
-        log_error("Syntax Error: expected number, variable reference, or '(' but got %s", (*t)->lexeme);
-      break;
+      log_error("Syntax Error: expected number, variable reference, or '(' but got %s", 
+					(*t)->lexeme);
+      value = 0.0;
+			break;
   }
+	return value;
 }
+
+int lookup_iterator_value(const char *key, StrMap *symtable) {
+	void *result = bob_str_map_get(symtable, key);	
+	intptr_t intptr = (intptr_t)result;
+	return intptr;
+}
+
 

@@ -1,7 +1,9 @@
 #ifndef  __lazy_instance_engine_h__
 #define __lazy_instance_engine_h__
 
-extern double lazy_epxression_compute(char *src, double val);
+#include "common/data-structures.h"
 
-#endif
+extern double lazy_epxression_compute(StrMap *symtable, char *src);
+
+#en:wq
 
