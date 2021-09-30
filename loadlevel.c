@@ -76,6 +76,7 @@ static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
 static int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID);
 static int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext);
 static GLenum to_gl_shader(bob_shader_e shader_type);
+static char *sqlite3_strdup(const unsigned char *sqlstr);
 
 bob_db_s *bob_loaddb(const char *path) {
   int rc;
@@ -254,10 +255,11 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 
 int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVector *pv) {
   int rc, modelID;
-  const char *vx, *vy, *vz, *scalex, *scaley, *scalez;
+  const unsigned char *vx, *vy, *vz, *scalex, *scaley, *scalez;
   float mass;
   bool isSubjectToGravity, isStatic;
   Model *model;
+	LazyInstance *li;
 
 	rc = sqlite3_bind_int(bdb->qlazyinstance, 1, rangeID);
 	if (rc != SQLITE_OK) {
@@ -268,17 +270,35 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
   while (1) {
     rc = sqlite3_step(bdb->qlazyinstance);
     if (rc == SQLITE_ROW) {
-      modelID = sqlite3_column_int(bdb->qrange, 5);
-      vx = sqlite3_column_text(bdb->qrange, 6);
-      vy = sqlite3_column_text(bdb->qrange, 7);
-      vz = sqlite3_column_text(bdb->qrange, 8);
-      scalex = sqlite3_column_text(bdb->qrange, 9);
-      scaley = sqlite3_column_text(bdb->qrange, 10);
-      scalez = sqlite3_column_text(bdb->qrange, 11);
-      mass = sqlite3_column_double(bdb->qrange, 11);
-      isSubjectToGravity = sqlite3_column_int(bdb->qrange, 12);
-      isStatic = sqlite3_column_int(bdb->qrange, 13);
+			//modelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic
+      modelID = sqlite3_column_int(bdb->qrange, 1);
+      vx = sqlite3_column_text(bdb->qrange, 2);
+      vy = sqlite3_column_text(bdb->qrange, 3);
+      vz = sqlite3_column_text(bdb->qrange, 4);
+      scalex = sqlite3_column_text(bdb->qrange, 5);
+      scaley = sqlite3_column_text(bdb->qrange, 6);
+      scalez = sqlite3_column_text(bdb->qrange, 7);
+      mass = sqlite3_column_double(bdb->qrange, 8);
+      isSubjectToGravity = sqlite3_column_int(bdb->qrange, 9);
+      isStatic = sqlite3_column_int(bdb->qrange, 10);
       model = bob_dbload_model(bdb, modelID);
+
+			li = malloc(sizeof *li);
+			if (!li) {
+				log_error("memory allocation error for new lazy instance");
+				return -1;
+			}
+			log_info("v values: <%p, %p, %p>", vx, vy, vz);
+			li->px = sqlite3_strdup(vx);
+			li->py = sqlite3_strdup(vy);
+			li->pz = sqlite3_strdup(vz);
+			li->scalex = sqlite3_strdup(scalex);
+			li->scaley = sqlite3_strdup(scaley);
+			li->scalez = sqlite3_strdup(scalez);
+			li->mass = mass;
+			li->isSubjectToGravity = isSubjectToGravity;
+			li->isStatic = isStatic;
+			li->model = model;
     }
     else if (rc == SQLITE_DONE) {
       break;
@@ -637,5 +657,16 @@ GLenum to_gl_shader(bob_shader_e shader_type) {
       break;
   }
   return -1;
+}
+
+static char *sqlite3_strdup(const unsigned char *sqlstr) {
+	size_t len = strlen((const char *)sqlstr);
+	char *dupstr = malloc(len);
+	if (!dupstr) {
+		log_error("error allocating memory for read sqlite database text field.");
+		return NULL;
+	}
+	strcpy(dupstr, (const char*)sqlstr);
+	return dupstr;
 }
 
