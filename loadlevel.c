@@ -261,6 +261,8 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
   Model *model;
 	LazyInstance *li;
 
+  log_info("rangeid: %d", rangeID);
+
 	rc = sqlite3_bind_int(bdb->qlazyinstance, 1, rangeID);
 	if (rc != SQLITE_OK) {
     log_error("failed to bind rangeId parameter to lazy instance query: errno %d", rc);
@@ -271,16 +273,16 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
     rc = sqlite3_step(bdb->qlazyinstance);
     if (rc == SQLITE_ROW) {
 			//modelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic
-      modelID = sqlite3_column_int(bdb->qrange, 1);
-      vx = sqlite3_column_text(bdb->qrange, 2);
-      vy = sqlite3_column_text(bdb->qrange, 3);
-      vz = sqlite3_column_text(bdb->qrange, 4);
-      scalex = sqlite3_column_text(bdb->qrange, 5);
-      scaley = sqlite3_column_text(bdb->qrange, 6);
-      scalez = sqlite3_column_text(bdb->qrange, 7);
-      mass = sqlite3_column_double(bdb->qrange, 8);
-      isSubjectToGravity = sqlite3_column_int(bdb->qrange, 9);
-      isStatic = sqlite3_column_int(bdb->qrange, 10);
+      modelID = sqlite3_column_int(bdb->qlazyinstance, 0);
+      vx = sqlite3_column_text(bdb->qlazyinstance, 1);
+      vy = sqlite3_column_text(bdb->qlazyinstance, 2);
+      vz = sqlite3_column_text(bdb->qlazyinstance, 3);
+      scalex = sqlite3_column_text(bdb->qlazyinstance, 4);
+      scaley = sqlite3_column_text(bdb->qlazyinstance, 5);
+      scalez = sqlite3_column_text(bdb->qlazyinstance, 6);
+      mass = sqlite3_column_double(bdb->qlazyinstance, 7);
+      isSubjectToGravity = sqlite3_column_int(bdb->qlazyinstance, 8);
+      isStatic = sqlite3_column_int(bdb->qlazyinstance, 9);
       model = bob_dbload_model(bdb, modelID);
 
 			li = malloc(sizeof *li);
@@ -288,7 +290,7 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
 				log_error("memory allocation error for new lazy instance");
 				return -1;
 			}
-			log_info("v values: <%p, %p, %p>", vx, vy, vz);
+			log_info("v values: <%p, %p, %p>", scalex, scaley, scalez);
 			li->px = sqlite3_strdup(vx);
 			li->py = sqlite3_strdup(vy);
 			li->pz = sqlite3_strdup(vz);
