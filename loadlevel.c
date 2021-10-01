@@ -208,7 +208,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	}
 
 	int steps, modelId, rangeId, child;
-	const char *var;
+	const unsigned char *var;
 	bool cache;
 	Range *range;
 
@@ -221,14 +221,12 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			cache = sqlite3_column_int(bdb->qrange, 3);
 			child = sqlite3_column_int(bdb->qrange, 4);
 			
-			log_debug("loaded range with steps: %d %d", modelId, steps);
 
 			range = calloc(1, sizeof *range);
 			if (!range) {
         log_error("failed to allocate memory for range");
         return -1;
 			}
-
 			range->steps = steps;
 			range->var = *var;
 			range->cache = cache;
@@ -238,6 +236,8 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			if (rc) {
 				return -1;
 			}
+
+      pointer_vector_add(&lvl->ranges, range);
 		}
 		else if (rc == SQLITE_DONE) {
 			break;	
@@ -247,9 +247,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
       return -1;
 		}
 	}
-
   sqlite3_reset(bdb->qrange);
-	
 	return 0;
 }
 
@@ -261,18 +259,14 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
   Model *model;
 	LazyInstance *li;
 
-  log_info("rangeid: %d", rangeID);
-
 	rc = sqlite3_bind_int(bdb->qlazyinstance, 1, rangeID);
 	if (rc != SQLITE_OK) {
     log_error("failed to bind rangeId parameter to lazy instance query: errno %d", rc);
     return -1;
 	}
-
   while (1) {
     rc = sqlite3_step(bdb->qlazyinstance);
     if (rc == SQLITE_ROW) {
-			//modelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic
       modelID = sqlite3_column_int(bdb->qlazyinstance, 0);
       vx = sqlite3_column_text(bdb->qlazyinstance, 1);
       vy = sqlite3_column_text(bdb->qlazyinstance, 2);
@@ -301,6 +295,14 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
 			li->isSubjectToGravity = isSubjectToGravity;
 			li->isStatic = isStatic;
 			li->model = model;
+      glm_vec3_zero(li->velocity);
+      glm_vec3_zero(li->acceleration);
+      glm_vec3_zero(li->force);
+      li->rotation[0] = 0;
+      li->rotation[1] = 0;
+      li->rotation[2] = 0;
+
+      pointer_vector_add(&lvl->instances, li);
     }
     else if (rc == SQLITE_DONE) {
       break;
@@ -310,9 +312,7 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
       return -1;
     }
   }
-
   sqlite3_reset(bdb->qlazyinstance);
-
 	return 0;
 }
 
