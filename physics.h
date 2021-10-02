@@ -7,8 +7,8 @@
 typedef struct phys_impulse_s phys_impulse_s;
 
 struct phys_impulse_s {
-  double dt;
-  vec3 force;
+	double dt;
+	vec3 force;
 };
 
 extern phys_impulse_s *phys_impulse_new(double dt);

@@ -24,37 +24,37 @@ struct Model {
 struct Instance {
 	Model *model;
 	float mass;
-  bool isSubjectToGravity;
-  bool isStatic;
+	bool isSubjectToGravity;
+	bool isStatic;
 	vec3 pos;
 	vec3 velocity;
 	vec3 acceleration;
-  vec3 force;
+	vec3 force;
 	vec3 scale;
 	vec3 rotation;
 	PointerVector *collision_space;
 	PointerVector *gravity_space;
-  PointerList *impulse;
+	PointerList *impulse;
 };
 
 struct LazyInstance {
 	Model *model;
 	float mass;
-  bool isSubjectToGravity;
-  bool isStatic;
+	bool isSubjectToGravity;
+	bool isStatic;
 	char *px;
 	char *py;
 	char *pz;
 	vec3 velocity;
 	vec3 acceleration;
-  vec3 force;
+	vec3 force;
 	char *scalex;
 	char *scaley;
 	char *scalez;
 	vec3 rotation;
 	PointerVector *collision_space;
 	PointerVector *gravity_space;
-  PointerList *impulse;
+	PointerList *impulse;
 };
 
 struct Range {

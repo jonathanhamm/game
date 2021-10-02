@@ -47,7 +47,7 @@ void render_instance(Instance *instance, Camera *camera) {
 	model_handle = glGetUniformLocation(program, "model");
 	camera_handle = glGetUniformLocation(program, "camera");
 	tex_handle = glGetUniformLocation(program, "tex");
-	
+
 	glUniformMatrix4fv(model_handle, 1, false, (const GLfloat *)mmatrix);
 	glUniformMatrix4fv(camera_handle, 1, false, (const GLfloat *)cmatrix);
 	glUniform1i(tex_handle, 0);
@@ -124,78 +124,78 @@ void level_render(GLFWwindow *window, Level *level) {
 }
 
 void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
-  const GLfloat degreesPerSecond = 180.0f;
-  camera->gdegrees_rotated += secondsElapsed * degreesPerSecond;
-  while(camera->gdegrees_rotated > 360.0f) camera->gdegrees_rotated -= 360.0f;
-  vec3 result;
-  const float moveSpeed = 5; //units per second
-  if(glfwGetKey(window, 'S')){
-    camera_forward(camera, result);
-    glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
-    camera_offset_position(camera, result);
-  } 
-  else if(glfwGetKey(window, 'W')){
-    camera_forward(camera, result);
-    glm_vec3_scale(result, secondsElapsed * moveSpeed, result);
-    camera_offset_position(camera, result);
-  }
-  if(glfwGetKey(window, 'A')){
-    camera_right(camera, result);
-    glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
-    camera_offset_position(camera, result);
-  } 
-  else if(glfwGetKey(window, 'D')){
-    camera_right(camera, result);
-    glm_vec3_scale(result, secondsElapsed * moveSpeed, result);
-    camera_offset_position(camera, result);
-  }
-  const float mouseSensitivity = 0.1f;
-  double mouseX, mouseY;
-  
-  glfwGetCursorPos(window, &mouseX, &mouseY);
-  camera_offset_orientation(camera, mouseSensitivity * (float)mouseY, mouseSensitivity * (float)mouseX);
-  glfwSetCursorPos(window, 0, 0); //reset the mouse, so it doesn't go out of the window
-  
+	const GLfloat degreesPerSecond = 180.0f;
+	camera->gdegrees_rotated += secondsElapsed * degreesPerSecond;
+	while(camera->gdegrees_rotated > 360.0f) camera->gdegrees_rotated -= 360.0f;
+	vec3 result;
+	const float moveSpeed = 5; //units per second
+	if(glfwGetKey(window, 'S')){
+		camera_forward(camera, result);
+		glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
+		camera_offset_position(camera, result);
+	} 
+	else if(glfwGetKey(window, 'W')){
+		camera_forward(camera, result);
+		glm_vec3_scale(result, secondsElapsed * moveSpeed, result);
+		camera_offset_position(camera, result);
+	}
+	if(glfwGetKey(window, 'A')){
+		camera_right(camera, result);
+		glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
+		camera_offset_position(camera, result);
+	} 
+	else if(glfwGetKey(window, 'D')){
+		camera_right(camera, result);
+		glm_vec3_scale(result, secondsElapsed * moveSpeed, result);
+		camera_offset_position(camera, result);
+	}
+	const float mouseSensitivity = 0.1f;
+	double mouseX, mouseY;
+
+	glfwGetCursorPos(window, &mouseX, &mouseY);
+	camera_offset_orientation(camera, mouseSensitivity * (float)mouseY, mouseSensitivity * (float)mouseX);
+	glfwSetCursorPos(window, 0, 0); //reset the mouse, so it doesn't go out of the window
+
 }
 
 Instance *spawn_instance(Level *level) {
-  Instance *inst = malloc(sizeof *inst);
-  if (!inst) {
-    log_error("memory error");
-    exit(1);
-  }
-  
-  PointerVector *pv = &level->instances;
-  Instance *template = pv->buffer[0];
+	Instance *inst = malloc(sizeof *inst);
+	if (!inst) {
+		log_error("memory error");
+		exit(1);
+	}
 
-  inst->pos[0] = level->camera.pos[0];
-  inst->pos[1] = level->camera.pos[1];
-  inst->pos[2] = level->camera.pos[2];
+	PointerVector *pv = &level->instances;
+	Instance *template = pv->buffer[0];
 
-  inst->mass = 10;
-  inst->scale[0] = 1.0;
-  inst->scale[1] = 1.0;
-  inst->scale[2] = 1.0;
-  inst->rotation[0] = 2;
-  inst->rotation[1] = 0;
-  inst->rotation[2] = 0;
-  inst->isSubjectToGravity = true;
-  inst->isStatic = false;
-  inst->model = template->model;
-  inst->impulse = NULL;
+	inst->pos[0] = level->camera.pos[0];
+	inst->pos[1] = level->camera.pos[1];
+	inst->pos[2] = level->camera.pos[2];
 
-  glm_vec3_zero(inst->velocity);
-  glm_vec3_zero(inst->acceleration);
-  glm_vec3_zero(inst->force);
+	inst->mass = 10;
+	inst->scale[0] = 1.0;
+	inst->scale[1] = 1.0;
+	inst->scale[2] = 1.0;
+	inst->rotation[0] = 2;
+	inst->rotation[1] = 0;
+	inst->rotation[2] = 0;
+	inst->isSubjectToGravity = true;
+	inst->isStatic = false;
+	inst->model = template->model;
+	inst->impulse = NULL;
 
-  phys_impulse_s *imp = phys_impulse_new(0.01);
-  camera_forward(&level->camera, imp->force);
-  glm_vec3_scale(imp->force, 1E4, imp->force);
-  phys_add_impulse(inst, imp);
+	glm_vec3_zero(inst->velocity);
+	glm_vec3_zero(inst->acceleration);
+	glm_vec3_zero(inst->force);
 
-  pointer_vector_add(pv, inst);
-  pointer_vector_add(&level->gravityObjects, inst);
-  return inst;
+	phys_impulse_s *imp = phys_impulse_new(0.01);
+	camera_forward(&level->camera, imp->force);
+	glm_vec3_scale(imp->force, 1E4, imp->force);
+	phys_add_impulse(inst, imp);
+
+	pointer_vector_add(pv, inst);
+	pointer_vector_add(&level->gravityObjects, inst);
+	return inst;
 }
 
 void bob_start(void) {
@@ -206,7 +206,7 @@ void bob_start(void) {
 	GLuint vertex_buffer;
 	GLint mvp_location, vpos_location, vcol_location;
 
-  static int debounce = 0;
+	static int debounce = 0;
 
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
@@ -239,48 +239,48 @@ void bob_start(void) {
 	glDepthFunc(GL_LESS);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glPolygonMode( GL_FRONT_AND_BACK, GL_TRIANGLE_STRIP );
+	glPolygonMode( GL_FRONT_AND_BACK, GL_TRIANGLE_STRIP );
 
-  bob_db_s *bdb = bob_loaddb("level/test.db");
+	bob_db_s *bdb = bob_loaddb("level/test.db");
 
-  Level *blvl = bob_loadlevel(bdb, "hello");
+	Level *blvl = bob_loadlevel(bdb, "hello");
 
 	Level level = *blvl;
 	level.t0 = glfwGetTime();
 	PointerVector pvt = gen_instances_test1();
-  
+
 	camera_init(&level.camera);
 
-  GLenum glError = glGetError();
-  if (glError != GL_NO_ERROR) {
-    log_error("glerror: %d", glError);
-  }
-  else {
-    log_debug("no glerrors");
-  }
+	GLenum glError = glGetError();
+	if (glError != GL_NO_ERROR) {
+		log_error("glerror: %d", glError);
+	}
+	else {
+		log_debug("no glerrors");
+	}
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !debounce) {
-      spawn_instance(&level);
-      debounce++;
-    }
-    else if(debounce > 10) {
-      debounce = 0;
-    }
-    else if(debounce) {
-      debounce++;
-    } 
+		if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !debounce) {
+			spawn_instance(&level);
+			debounce++;
+		}
+		else if(debounce > 10) {
+			debounce = 0;
+		}
+		else if(debounce) {
+			debounce++;
+		} 
 
-    double currTime = glfwGetTime();
-    float dt = currTime - level.t0;
+		double currTime = glfwGetTime();
+		float dt = currTime - level.t0;
 
-    update(window, &level.camera, dt);
-    phys_compute_force(&level);
-    phys_update_position(&level);
+		update(window, &level.camera, dt);
+		phys_compute_force(&level);
+		phys_update_position(&level);
 
 		level_render(window, &level);
 		glfwSwapBuffers(window);
@@ -291,7 +291,7 @@ void bob_start(void) {
 			exit(1);
 		}
 
-    level.t0 = currTime;
+		level.t0 = currTime;
 	}
 	glfwDestroyWindow(window);
 	glfwTerminate();

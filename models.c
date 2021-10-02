@@ -14,7 +14,7 @@ PointerVector get_basic_shaders1(void) {
 
 	result = gl_load_shader_from_file(vertex_shader, GL_VERTEX_SHADER, "shaders/vertex.vsh", "test1");
 	result = gl_load_shader_from_file(fragment_shader, GL_FRAGMENT_SHADER, "shaders/fragment.fsh", "test2");
-	
+
 	pointer_vector_init(&pv);
 	pointer_vector_add(&pv, fragment_shader);
 	pointer_vector_add(&pv, vertex_shader);
