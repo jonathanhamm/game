@@ -69,7 +69,7 @@ static int prepare_queries(bob_db_s *bdb);
 static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name);
 static int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name);
 static int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name);
-static int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeId, PointerVector *pv);
+static int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, int rangeId, PointerVector *pv);
 static Model *bob_dbload_model(bob_db_s *bdb, int modelID);
 static void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID);
 static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
@@ -212,6 +212,8 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	bool cache;
 	Range *range;
 
+	pointer_vector_init(&lvl->ranges);
+
 	while (1) {
     rc = sqlite3_step(bdb->qrange);
     if (rc == SQLITE_ROW) {
@@ -232,7 +234,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			range->cache = cache;
 			range->child = NULL;
 
-			rc = bob_dbload_lazy_instances(lvl, bdb, rangeId, &range->lazyinstances);
+			rc = bob_dbload_lazy_instances(lvl, range, bdb, rangeId, &range->lazyinstances);
 			if (rc) {
 				return -1;
 			}
@@ -251,13 +253,15 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	return 0;
 }
 
-int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVector *pv) {
+int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, int rangeID, PointerVector *pv) {
   int rc, modelID;
   const unsigned char *vx, *vy, *vz, *scalex, *scaley, *scalez;
   float mass;
   bool isSubjectToGravity, isStatic;
   Model *model;
 	LazyInstance *li;
+
+	pointer_vector_init(&range->lazyinstances);
 
 	rc = sqlite3_bind_int(bdb->qlazyinstance, 1, rangeID);
 	if (rc != SQLITE_OK) {
@@ -302,7 +306,7 @@ int bob_dbload_lazy_instances(Level *lvl, bob_db_s *bdb, int rangeID, PointerVec
       li->rotation[1] = 0;
       li->rotation[2] = 0;
 
-      pointer_vector_add(&lvl->instances, li);
+      pointer_vector_add(&range->lazyinstances, li);
     }
     else if (rc == SQLITE_DONE) {
       break;
