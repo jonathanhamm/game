@@ -1,3 +1,4 @@
+#include "common/data-structures.h"
 #include "log.h" 
 #include "loadlevel.h" 
 #include "models.h"
@@ -66,10 +67,12 @@ const char *texture_qstr =
 static sqlite3_stmt *query_level;
 
 static int prepare_queries(bob_db_s *bdb);
-static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name);
+static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, 
+		const char *name);
 static int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name);
 static int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name);
-static int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, int rangeId, PointerVector *pv);
+static int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, 
+		int rangeId, PointerVector *pv);
 static Model *bob_dbload_model(bob_db_s *bdb, int modelID);
 static void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID);
 static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
@@ -124,7 +127,6 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
 		return NULL;
   return lvl;
 }
-
 
 int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name) {
 	int rc;
@@ -199,20 +201,22 @@ int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name) {
 }
 
 int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
-	int rc;
-	
+	int i, rc;
+	int steps, modelId, rangeId, childId;
+	const unsigned char *var;
+	bool cache;
+	Range *range;
+	IntMap rangeMap;
+	PointerVector loadRanges;
+
 	rc = sqlite3_bind_text(bdb->qrange, 1, name, -1, NULL);
 	if (rc != SQLITE_OK) {
     log_error("failed to bind level name parameter to range query");
     return -1;
 	}
 
-	int steps, modelId, rangeId, child;
-	const unsigned char *var;
-	bool cache;
-	Range *range;
-
-	pointer_vector_init(&lvl->ranges);
+	pointer_vector_init(&loadRanges);
+	bob_int_map_init(&rangeMap);
 
 	while (1) {
     rc = sqlite3_step(bdb->qrange);
@@ -221,9 +225,8 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			steps = sqlite3_column_int(bdb->qrange, 1);	
 			var = sqlite3_column_text(bdb->qrange, 2);
 			cache = sqlite3_column_int(bdb->qrange, 3);
-			child = sqlite3_column_int(bdb->qrange, 4);
+			childId = sqlite3_column_int(bdb->qrange, 4);
 			
-
 			range = calloc(1, sizeof *range);
 			if (!range) {
         log_error("failed to allocate memory for range");
@@ -232,14 +235,19 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			range->steps = steps;
 			range->var = *var;
 			range->cache = cache;
-			range->child = NULL;
+			range->childId = childId;
+			range->currval = 0;
+			range->parent = NULL;
 
-			rc = bob_dbload_lazy_instances(lvl, range, bdb, rangeId, &range->lazyinstances);
+			rc = bob_dbload_lazy_instances(lvl, range, bdb, rangeId, 
+					&range->lazyinstances);
 			if (rc) {
 				return -1;
 			}
 
-      pointer_vector_add(&lvl->ranges, range);
+			bob_int_map_insert(&rangeMap, rangeId, range);
+
+      pointer_vector_add(&loadRanges, range);
 		}
 		else if (rc == SQLITE_DONE) {
 			break;	
@@ -249,11 +257,36 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
       return -1;
 		}
 	}
+
   sqlite3_reset(bdb->qrange);
+
+	/* assign pointers */
+	for (i = 0; i < loadRanges.size; i++) {
+		Range *curr = loadRanges.buffer[i];
+		if (curr->childId) {
+			Range *child = bob_int_map_get(&rangeMap, curr->childId);
+			curr->child = child;
+			child->parent = curr;
+			log_info("assigning pointers: { curr: %p, child: %p }", curr, child);
+		}
+	}
+	bob_int_map_free(&rangeMap);
+
+	/* Assign root ranges to ranges vector */
+	pointer_vector_init(&lvl->ranges);
+	for (i = 0; i < loadRanges.size; i++) {
+		Range *curr = loadRanges.buffer[i];
+		if (!curr->parent) {
+			pointer_vector_add(&lvl->ranges, range);
+		}
+	}
+	pointer_vector_free(&loadRanges);
+
 	return 0;
 }
 
-int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, int rangeID, PointerVector *pv) {
+int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, 
+		int rangeID, PointerVector *pv) {
   int rc, modelID;
   const unsigned char *vx, *vy, *vz, *scalex, *scaley, *scalez;
   float mass;
@@ -265,7 +298,8 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, int range
 
 	rc = sqlite3_bind_int(bdb->qlazyinstance, 1, rangeID);
 	if (rc != SQLITE_OK) {
-    log_error("failed to bind rangeId parameter to lazy instance query: errno %d", rc);
+    log_error("failed to bind rangeId parameter to lazy instance query: errno %d", 
+				rc);
     return -1;
 	}
   while (1) {
@@ -312,7 +346,8 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, int range
       break;
     }
     else {
-      log_error("Unexpected result from database lazy instance query: %d\n", rc);
+      log_error("Unexpected result from database lazy instance query: %d\n", 
+					rc);
       return -1;
     }
   }
@@ -354,7 +389,8 @@ int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name) {
 int prepare_queries(bob_db_s *bdb) {
   int rc;
 
-  rc = sqlite3_prepare_v2(bdb->db, level_ambient_gravity_qstr, -1, &bdb->qambientgravity, 0);
+  rc = sqlite3_prepare_v2(bdb->db, level_ambient_gravity_qstr, -1, 
+			&bdb->qambientgravity, 0);
   if (rc != SQLITE_OK) {
     log_error("failed to prepare ambientGravity query");
     return -1;
@@ -469,15 +505,18 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
 
     glBindVertexArray(m->vao);
     glBindBuffer(GL_ARRAY_BUFFER, m->vbo);
-    glBufferData(GL_ARRAY_BUFFER, fbuf.size * sizeof(GLfloat), fbuf.buffer, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, fbuf.size * sizeof(GLfloat), fbuf.buffer, 
+				GL_STATIC_DRAW);
 
     handle = gl_shader_attrib(m->program, "vert");
     glEnableVertexAttribArray(handle);
-    glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), NULL);
+    glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), 
+				NULL);
 
     handle = gl_shader_attrib(m->program, "vertexCoord");
     glEnableVertexAttribArray(handle);
-    glVertexAttribPointer(handle, 2, GL_FLOAT, GL_TRUE, 5*sizeof(GLfloat), (const GLvoid *)(3*sizeof(GLfloat)));
+    glVertexAttribPointer(handle, 2, GL_FLOAT, GL_TRUE, 5*sizeof(GLfloat), 
+				(const GLvoid *)(3*sizeof(GLfloat)));
 
     glBindVertexArray(0);
   }

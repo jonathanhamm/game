@@ -59,9 +59,14 @@ struct LazyInstance {
 
 struct Range {
 	int steps;
+	int currval;
 	char var;
 	bool cache;
-	Range *child;
+	Range *parent;
+	union {
+		Range *child;
+		int childId;
+	};
 	PointerVector lazyinstances;
 };
 

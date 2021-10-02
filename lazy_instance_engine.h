@@ -5,5 +5,5 @@
 
 extern double lazy_epxression_compute(StrMap *symtable, char *src);
 
-#en:wq
+#endif
 
