@@ -2,8 +2,9 @@
 #define __lazy_instance_engine_h__
 
 #include "common/data-structures.h"
+#include "models.h"
 
-extern double lazy_epxression_compute(StrMap *symtable, char *src);
+extern float lazy_epxression_compute(Range *range, char *src);
 
 #endif
 

@@ -267,7 +267,6 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			Range *child = bob_int_map_get(&rangeMap, curr->childId);
 			curr->child = child;
 			child->parent = curr;
-			log_info("assigning pointers: { curr: %p, child: %p }", curr, child);
 		}
 	}
 	bob_int_map_free(&rangeMap);
@@ -298,7 +297,8 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 
 	rc = sqlite3_bind_int(bdb->qlazyinstance, 1, rangeID);
 	if (rc != SQLITE_OK) {
-    log_error("failed to bind rangeId parameter to lazy instance query: errno %d", 
+    log_error(
+				"failed to bind rangeId parameter to lazy instance query: errno %d", 
 				rc);
     return -1;
 	}
@@ -322,7 +322,6 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 				log_error("memory allocation error for new lazy instance");
 				return -1;
 			}
-			log_info("v values: <%p, %p, %p>", scalex, scaley, scalez);
 			li->px = sqlite3_strdup(vx);
 			li->py = sqlite3_strdup(vy);
 			li->pz = sqlite3_strdup(vz);

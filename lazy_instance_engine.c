@@ -35,22 +35,25 @@ struct lztok_list_s {
 };
 
 static void lz_add_tok(lztok_list_s *list, char *lexeme, lztok_type_e type);
+static void lz_toklist_free(lztok_list_s *list);
 static lztok_list_s lex(char *src);
 static char *dupstr(char *str);
 
-static double parse(lztok_list_s toklist, StrMap *symtable);
+static float parse(lztok_list_s toklist, Range *range);
 
-static double p_expression(lztok_s **t, StrMap *symtable);
-static void p_expression_(lztok_s **t, double *exp, StrMap *symtable);
-static double p_term(lztok_s **t, StrMap *symtable);
-static void p_term_(lztok_s **t, double *term, StrMap *symtable);
-static double p_factor(lztok_s **t, StrMap *symtable);
-static int lookup_iterator_value(const char *key, StrMap *symtable);
+static float p_expression(lztok_s **t, Range *range);
+static void p_expression_(lztok_s **t, float *exp, Range *range);
+static float p_term(lztok_s **t, Range *range);
+static void p_term_(lztok_s **t, float *term, Range *range);
+static float p_factor(lztok_s **t, Range *range);
+static int lookup_iterator_value(const char var, Range *range);
 
-double lazy_epxression_compute(StrMap *symtable, char *src) {
+float lazy_epxression_compute(Range *range, char *src) {
   char *nsrc = dupstr(src);
   lztok_list_s toklist = lex(nsrc);
-  return parse(toklist, symtable);
+  float result = parse(toklist, range);
+	lz_toklist_free(&toklist); 
+	return result;
 }
 
 lztok_list_s lex(char *src) {
@@ -109,7 +112,7 @@ lztok_list_s lex(char *src) {
           while (isalpha(*++fptr));
           bck = *fptr;
           *fptr = '\0';
-          lz_add_tok(&toklist, bptr, LZTYPE_NUM);
+          lz_add_tok(&toklist, bptr, LZTYPE_IDENT);
           *fptr = bck;
 				}
 				else {
@@ -140,6 +143,15 @@ void lz_add_tok(lztok_list_s *list, char *lexeme, lztok_type_e type) {
   list->tail = ntok;
 }
 
+void lz_toklist_free(lztok_list_s *list) {
+	lztok_s *t = list->head, *bck;
+	while (t) {
+		bck = t;	
+		t = t->next;
+		free(bck);
+	}
+}
+
 char *dupstr(char *str) {
   size_t len = strlen(str);
   char *nstr = malloc(len);
@@ -152,34 +164,36 @@ char *dupstr(char *str) {
   return nstr;
 }
 
-double parse(lztok_list_s toklist, StrMap *symtable) {
+float parse(lztok_list_s toklist, Range *range) {
   lztok_s *t = toklist.head;
-  p_expression(&t, symtable);
+  float result = p_expression(&t, range);
   if (t->type != LZTYPE_EOF) {
     log_error("Syntax Error: Expected end of expression, but got %s", t->lexeme);
   }
+	return result;
 }
 
-double p_expression(lztok_s **t, StrMap *symtable) {
-	double val;
+float p_expression(lztok_s **t, Range *range) {
+	float val;
 	lztok_s *op;
 
   switch ((*t)->type) {
     case LZTYPE_NUM:
     case LZTYPE_IDENT:
     case LZTYPE_LPAREN:
-      val = p_term(t, symtable);
-      p_expression_(t, &val, symtable);
+      val = p_term(t, range);
+      p_expression_(t, &val, range);
       break;
     case LZTYPE_ADDOP:
 			op = *t;
       *t = (*t)->next;
-      val = p_expression(t, symtable);
+      val = p_expression(t, range);
 			if (*op->lexeme == '-')
 				val = -val;
       break;
     default:
-      log_error("Syntax Error: expected number, +, -, '(', or variable reference, but got %s", 
+      log_error(
+					"Syntax Error: expected number, +, -, '(', or variable reference, but got %s", 
 					(*t)->lexeme);
 			val = 0.0;
       break;
@@ -187,69 +201,70 @@ double p_expression(lztok_s **t, StrMap *symtable) {
 	return val;
 }
 
-void p_expression_(lztok_s **t, double *exp, StrMap *symtable) {
+void p_expression_(lztok_s **t, float *exp, Range *range) {
 	lztok_s *op;
-	double term;
+	float term;
 
   if ((*t)->type == LZTYPE_ADDOP) {
 		op = *t;
     *t = (*t)->next;
-    term = p_term(t, symtable);
+    term = p_term(t, range);
 		if (*op->lexeme == '+')
 			*exp += term;
 		else
 			*exp -= term;
-    p_expression_(t, exp, symtable);
+    p_expression_(t, exp, range);
   }
 }
 
-double p_term(lztok_s **t, StrMap *symtable) {
-	double val;
+float p_term(lztok_s **t, Range *range) {
+	float val;
 
   switch ((*t)->type) {
     case LZTYPE_NUM:
     case LZTYPE_IDENT:
     case LZTYPE_LPAREN:
-      val = p_factor(t, symtable);
-      p_term_(t, &val, symtable);
+      val = p_factor(t, range);
+      p_term_(t, &val, range);
       break;
     default:
-      log_error("Syntax Error: expected number variable reference, or '(', but got %s", (*t)->lexeme);
+      log_error("Syntax Error: expected number variable reference, or '(', but got %s", 
+					(*t)->lexeme);
 			val = 0.0;
       break;
   }
 	return val;
 }
 
-void p_term_(lztok_s **t, double *term, StrMap *symtable) {
-	double factor;
+void p_term_(lztok_s **t, float *term, Range *range) {
+	float factor;
 	lztok_s *op;
   if ((*t)->type == LZTYPE_MULOP) {
 		op = *t;
     *t = (*t)->next;
-    factor = p_factor(t, symtable);
+    factor = p_factor(t, range);
 		if (*op->lexeme == '*')
 			*term = *term * factor;
 		else
 			*term = *term / factor;
-    p_term_(t, term, symtable);
+    p_term_(t, term, range);
   }
 }
 
-double p_factor(lztok_s **t, StrMap *symtable) {
-	double value;
+float p_factor(lztok_s **t, Range *range) {
+	float value;
   switch ((*t)->type) {
     case LZTYPE_NUM:
 			value = atof((*t)->lexeme);
       *t = (*t)->next;
 			break;
     case LZTYPE_IDENT:
-			value = (double)lookup_iterator_value((*t)->lexeme, symtable);
+			value = (float)lookup_iterator_value(*(*t)->lexeme, range);
       *t = (*t)->next;
       break;
     case LZTYPE_LPAREN:
       *t = (*t)->next;
-      value = p_expression(t, symtable);
+      value = p_expression(t, range);
       if ((*t)->type == LZTYPE_RPAREN) {
         *t = (*t)->next;
       } else {
@@ -265,10 +280,13 @@ double p_factor(lztok_s **t, StrMap *symtable) {
 	return value;
 }
 
-int lookup_iterator_value(const char *key, StrMap *symtable) {
-	void *result = bob_str_map_get(symtable, key);	
-	intptr_t intptr = (intptr_t)result;
-	return intptr;
+int lookup_iterator_value(const char var, Range *range) {
+	while (range && range->var != var) range = range->parent;
+	if (!range) {
+		log_error("access to undeclared iteraor variable within range %c", var);
+		return -1;
+	}
+	return range->currval;
 }
 
 

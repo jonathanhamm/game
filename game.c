@@ -4,6 +4,7 @@
 #include "glprogram.h"
 #include "models.h"
 #include "physics.h"
+#include "lazy_instance_engine.h"
 #include "loadlevel.h"
 #include <cglm/cglm.h>
 #include <GL/glew.h>
@@ -15,6 +16,8 @@
 
 static void level_render(GLFWwindow *window, Level *level);
 static void render_instance(Instance *instance, Camera *camera);
+static void render_range(Range *range, Camera *camera);
+static void render_lazy_instance(LazyInstance *li, Camera *camera, Range *range);
 static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
 static Instance *spawn_instance(Level *level);
 
@@ -61,6 +64,50 @@ void render_instance(Instance *instance, Camera *camera) {
 	glUseProgram(0);
 }
 
+void render_range(Range *range, Camera *camera) {
+	int i;
+
+	for (range->currval = 0; range->currval < range->steps; range->currval++) {
+		for (i = 0; i < range->lazyinstances.size; i++) {
+			LazyInstance *li = range->lazyinstances.buffer[i];
+			render_lazy_instance(li, camera, range);
+		}
+		if (range->child) {
+			render_range(range->child, camera);
+		}
+	}
+}
+
+void render_lazy_instance(LazyInstance *li, Camera *camera, Range *range) {
+	Instance instance;	
+
+	instance.model = li->model;
+	instance.isSubjectToGravity = li->isSubjectToGravity;
+	instance.isStatic = li->isStatic;
+	instance.collision_space = li->collision_space;
+	instance.mass = li->mass;
+	instance.gravity_space = li->gravity_space;
+	instance.impulse = li->impulse;
+
+	//log_debug("posx: %s , posy: %s, posz: %s (x=%d)", li->px, li->py, li->pz, range->currval);
+	float posx = lazy_epxression_compute(range, li->px);
+	float posy = lazy_epxression_compute(range, li->py);
+	float posz = lazy_epxression_compute(range, li->pz);
+	//log_debug("posx: %f , posy: %f, posz: %f", posx, posy, posz);
+	instance.pos[0] = posx;
+	instance.pos[1] = posy;
+	instance.pos[2] = posz;
+
+	float scalex = lazy_epxression_compute(range, li->scalex);
+	float scaley = lazy_epxression_compute(range, li->scaley);
+	float scalez = lazy_epxression_compute(range, li->scalez);
+	instance.scale[0] = scalex;
+	instance.scale[1] = scaley;
+	instance.scale[2] = scalez;
+
+	render_instance(&instance, camera);
+}
+
 void level_render(GLFWwindow *window, Level *level) {
 	int i;
 
@@ -68,6 +115,12 @@ void level_render(GLFWwindow *window, Level *level) {
 		Instance *instance = level->instances.buffer[i];
 		render_instance(level->instances.buffer[i], &level->camera);
 	}
+
+	for (i = 0; i < level->ranges.size; i++) {
+		Range *range = level->ranges.buffer[i];
+		render_range(range, &level->camera);	
+	}
+
 }
 
 void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
