@@ -286,11 +286,14 @@
 			"var": "x",
 			"cache": 0,
 			"child": {
-				"steps": 100,
+				"steps": 10,
 				"var": "y",
 				"cache": 1,
 				"instances": [
-					{"x": "x", "y": "y", "z": "0.0", "mass": 1.0, "model": m1}
+					{"x": "x", "y": "y", "z": "0.0", "mass": 1.0, "model": m1},
+					{"x": "x", "y": "y", "z": "10", "mass": 1.0, "model": m1},
+					{"x": "x", "y": "0", "z": "y", "mass": 1.0, "model": m1},
+					{"x": "x", "y": "10", "z": "y", "mass": 1.0, "model": m1}
 				]
 			},
 			"instances": [
