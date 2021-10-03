@@ -283,6 +283,7 @@ void bob_start(void) {
 		phys_update_position(&level);
 
 		level_render(window, &level);
+
 		glfwSwapBuffers(window);
 
 		GLenum error = glGetError();
