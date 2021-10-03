@@ -212,7 +212,8 @@
     ]
   }
   Texture texture := {
-    "path": "textures/basic1.png"
+    //"path": "textures/basic1.png"
+    "path": "textures/pge_icon.png"
   }
   Program program1 := {
     "vertex": {
@@ -278,22 +279,24 @@
     "texture": texture
   }
 
+	Int tunnelLength := 500
+	Int tunnelWidth := 5
 	Level turd := {
 		"name": derp,
     "ambientGravity": [0, 0, -9.81],
 		"ranges": [{
-			"steps": 100,
+			"steps": tunnelLength,
 			"var": "x",
 			"cache": 0,
 			"child": {
-				"steps": 10,
+				"steps": tunnelWidth,
 				"var": "y",
 				"cache": 1,
 				"instances": [
 					{"x": "x", "y": "y", "z": "0.0", "mass": 1.0, "model": m1},
-					{"x": "x", "y": "y", "z": "10", "mass": 1.0, "model": m1},
+					{"x": "x", "y": "y", "z": tunnelWidth, "mass": 1.0, "model": m1},
 					{"x": "x", "y": "0", "z": "y", "mass": 1.0, "model": m1},
-					{"x": "x", "y": "10", "z": "y", "mass": 1.0, "model": m1}
+					{"x": "x", "y": tunnelWidth, "z": "y", "mass": 1.0, "model": m1}
 				]
 			},
 			"instances": [
