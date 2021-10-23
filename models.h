@@ -2,6 +2,7 @@
 #define __models_h__
 
 #include "glprogram.h"
+#include "camera.h"
 #include "common/data-structures.h"
 #include <cglm/cglm.h>
 #include <GL/glew.h>
@@ -9,7 +10,10 @@
 typedef struct Model Model;
 typedef struct Instance Instance;
 typedef struct LazyInstance LazyInstance;
+typedef struct InstanceGroup InstanceGroup;
 typedef struct Range Range;
+typedef struct Range2 Range2;
+typedef struct Level Level;
 
 struct Model {
 	GlProgram *program;
@@ -57,6 +61,11 @@ struct LazyInstance {
 	PointerList *impulse;
 };
 
+struct InstanceGroup {
+  Model *model;
+  PointerVector instances;
+};
+
 struct Range {
 	int steps;
 	int currval;
@@ -70,6 +79,29 @@ struct Range {
 	PointerVector lazyinstances;
 };
 
+struct Range2 {
+	int steps;
+	int currval;
+	char var;
+	bool cache;
+	Range *parent;
+	union {
+		Range *child;
+		int childId;
+	};
+  Model *m;
+	PointerVector lazyinstances;
+};
+
+struct Level {
+	double t0;
+	Camera camera;
+	vec3 ambient_gravity;
+	PointerVector instances;
+	PointerVector ranges;
+	PointerVector gravityObjects;
+};
+
 extern Model *get_model_test1(void);
 
 extern PointerVector gen_instances_test1(void);
@@ -78,6 +110,8 @@ extern PointerVector gen_instances_test1(void);
 extern void instance_update_position(Instance *i, float dt);
 extern void instance_rotate(Instance *i, float x, float y, float z);
 extern void instance_get_matrix(Instance *i, mat4 m4);
+
+extern void instance_group_add(PointerVector *igs, Model *m, void *ptr);
 
 
 #endif

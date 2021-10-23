@@ -2,6 +2,7 @@
 #define __loadlevel_h__
 
 #include "game.h"
+#include "models.h"
 
 typedef struct bob_db_s bob_db_s;
 

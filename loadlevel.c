@@ -71,6 +71,8 @@ static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb,
 		const char *name);
 static int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name);
 static int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name);
+static int bob_dbload_range_decomp(Level *lvl, Range *range, bob_db_s *bdb, 
+		int rangeId, PointerVector *pv);
 static int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, 
 		int rangeId, PointerVector *pv);
 static Model *bob_dbload_model(bob_db_s *bdb, int modelID);
@@ -80,6 +82,7 @@ static int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID);
 static int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext);
 static GLenum to_gl_shader(bob_shader_e shader_type);
 static char *sqlite3_strdup(const unsigned char *sqlstr);
+static Range2 *bob_partition_range(Range2 *range);
 
 bob_db_s *bob_loaddb(const char *path) {
 	int rc;
@@ -186,7 +189,8 @@ int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name) {
 			inst->rotation[0] = 2;
 			inst->rotation[1] = 1;
 			inst->rotation[0] = 0;
-			pointer_vector_add(&lvl->instances, inst);
+
+			instance_group_add(&lvl->instances, model, inst);
 		}
 		else if (rc == SQLITE_DONE) {
 			break;
@@ -284,6 +288,11 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	return 0;
 }
 
+int bob_dbload_range_decomp(Level *lvl, Range *range, bob_db_s *bdb, 
+		int rangeId, PointerVector *pv) {
+  return 0;
+}
+
 int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, 
 		int rangeID, PointerVector *pv) {
 	int rc, modelID;
@@ -339,7 +348,7 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 			li->rotation[1] = 0;
 			li->rotation[2] = 0;
 
-			pointer_vector_add(&range->lazyinstances, li);
+			instance_group_add(&range->lazyinstances, model, li);
 		}
 		else if (rc == SQLITE_DONE) {
 			break;
@@ -713,5 +722,9 @@ static char *sqlite3_strdup(const unsigned char *sqlstr) {
 	}
 	strcpy(dupstr, (const char*)sqlstr);
 	return dupstr;
+}
+
+Range2 *bob_partition_range(Range2 *range) {
+  return NULL;
 }
 

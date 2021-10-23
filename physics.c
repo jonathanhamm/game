@@ -54,54 +54,60 @@ void s_phys_compute_point_gravity_instances(Level *level) {
 }
 
 void s_phys_compute_impulse(Level *level) {
-	int i;
+	int i, j;
 	double currtime = glfwGetTime();
 	double dt = currtime - level->t0;
 
 	for (i = 0; i < level->instances.size; i++) {
-		Instance *inst = level->instances.buffer[i];
-		PointerList *prev = inst->impulse, *curr = prev, *bck;
-		while (curr) {
-			phys_impulse_s *imp = curr->ptr;
-			glm_vec3_add(inst->force, imp->force, inst->force);
-			imp->dt -= dt;
-			if (imp->dt <= 0.0) {
-				bck = curr;
-				if (curr == prev) {
-					prev = curr->next;
-					inst->impulse = prev;
-				} else {
-					prev->next = curr->next;
-				}
-				curr = curr->next;
-				free(bck);
-			} else {
-				prev = curr;
-				curr = curr->next;
-			}
-		}
-	}
+    InstanceGroup *ig = level->instances.buffer[i];
+    for (j = 0; j < ig->instances.size; j++) {
+      Instance *inst = ig->instances.buffer[j];
+      PointerList *prev = inst->impulse, *curr = prev, *bck;
+      while (curr) {
+        phys_impulse_s *imp = curr->ptr;
+        glm_vec3_add(inst->force, imp->force, inst->force);
+        imp->dt -= dt;
+        if (imp->dt <= 0.0) {
+          bck = curr;
+          if (curr == prev) {
+            prev = curr->next;
+            inst->impulse = prev;
+          } else {
+            prev->next = curr->next;
+          }
+          curr = curr->next;
+          free(bck);
+        } else {
+          prev = curr;
+          curr = curr->next;
+        }
+      }
+    }
+  }
 }
 
 void phys_update_position(Level *level) {
-	size_t i;
+	size_t i, j;
 	double currtime = glfwGetTime();
 	double dt = currtime - level->t0;
 	vec3 accum;
 	PointerVector *pv = &level->instances;
 
-	for (i = 0; i < pv->size; i++) {
-		Instance *inst = pv->buffer[i];
-		if (!inst->isStatic) {
-			glm_vec3_divs(inst->force, inst->mass, inst->acceleration);
-			glm_vec3_zero(inst->force);
-			glm_vec3_add(inst->acceleration, level->ambient_gravity, inst->acceleration);
-			glm_vec3_scale(inst->acceleration, dt, accum);
-			glm_vec3_add(inst->velocity, accum, inst->velocity);
-			glm_vec3_scale(inst->velocity, dt, accum);
-			glm_vec3_add(inst->pos, accum, inst->pos);
-		}
-	}
+  for (i = 0; i < pv->size; i++) {
+    InstanceGroup *ig = pv->buffer[i];
+    for (j = 0; j < ig->instances.size; j++) {
+      Instance *inst = ig->instances.buffer[i];
+      if (!inst->isStatic) {
+        glm_vec3_divs(inst->force, inst->mass, inst->acceleration);
+        glm_vec3_zero(inst->force);
+        glm_vec3_add(inst->acceleration, level->ambient_gravity, inst->acceleration);
+        glm_vec3_scale(inst->acceleration, dt, accum);
+        glm_vec3_add(inst->velocity, accum, inst->velocity);
+        glm_vec3_scale(inst->velocity, dt, accum);
+        glm_vec3_add(inst->pos, accum, inst->pos);
+      }
+    }
+  }
 }
 
 void s_phys_compute_point_gravity(vec3 result, Instance *i1, Instance *i2) {

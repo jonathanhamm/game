@@ -48,12 +48,13 @@ void render_instance(Instance *instance, Camera *camera) {
 	camera_handle = glGetUniformLocation(program, "camera");
 	tex_handle = glGetUniformLocation(program, "tex");
 
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, m->texture->handle); 
+
+
 	glUniformMatrix4fv(model_handle, 1, false, (const GLfloat *)mmatrix);
 	glUniformMatrix4fv(camera_handle, 1, false, (const GLfloat *)cmatrix);
 	glUniform1i(tex_handle, 0);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, m->texture->handle); 
 
 	glBindVertexArray(m->vao);
 	glDrawArrays(m->drawType, m->drawStart, m->drawCount);
@@ -64,18 +65,112 @@ void render_instance(Instance *instance, Camera *camera) {
 	glUseProgram(0);
 }
 
+void render_instance2(Instance *instance, mat4 cmatrix, GLint camera_handle, 
+    GLint model_handle, GLint tex_handle) {
+	mat4 mmatrix;	
+
+  Model *m = instance->model;
+
+	instance_get_matrix(instance, mmatrix);
+
+	glUniformMatrix4fv(model_handle, 1, false, (const GLfloat *)mmatrix);
+	glUniformMatrix4fv(camera_handle, 1, false, (const GLfloat *)cmatrix);
+	glUniform1i(tex_handle, 0);
+
+  glDrawArrays(m->drawType, m->drawStart, m->drawCount);
+
+}
+
+static void render_lazy_instance_group(InstanceGroup *ig, Range *range, Camera *camera);
+
 void render_range(Range *range, Camera *camera) {
 	int i;
 
-	for (range->currval = 0; range->currval < range->steps; range->currval++) {
-		for (i = 0; i < range->lazyinstances.size; i++) {
-			LazyInstance *li = range->lazyinstances.buffer[i];
-			render_lazy_instance(li, camera, range);
-		}
-		if (range->child) {
-			render_range(range->child, camera);
-		}
-	}
+  for (i = 0; i < range->lazyinstances.size; i++) {
+    InstanceGroup *ig = range->lazyinstances.buffer[i];
+    render_lazy_instance_group(ig, range, camera);
+  }
+  if (range->child) {
+    render_range(range->child, camera);
+  }
+}
+//
+//Instance *instance, mat4 cmatrix, GLint camera_handle, 
+ //   GLint model_handle, GLint tex_handle
+
+void render_instance_group(InstanceGroup *ig, Camera *camera) {
+  int i;
+
+  mat4 cmatrix;
+  Model *m = ig->model;
+  GLint program, camera_handle, model_handle, tex_handle;
+
+  program = m->program->handle;
+
+  camera_get_matrix(camera, cmatrix);
+
+  glUseProgram(program);
+
+  model_handle = glGetUniformLocation(program, "model");
+  camera_handle = glGetUniformLocation(program, "camera");
+  tex_handle = glGetUniformLocation(program, "tex");
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, tex_handle); 
+
+	glBindVertexArray(m->vao);
+
+  for (i = 0; i < ig->instances.size; i++) {
+    Instance *inst = ig->instances.buffer[i];
+    render_instance2(inst, cmatrix, camera_handle, model_handle, tex_handle);
+    //render_instance(inst, camera);
+  }
+
+  glBindVertexArray(0);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  glUseProgram(0);
+}
+
+static void render_lazy_instance2(LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
+    GLint model_handle, GLint tex_handle) ;
+
+void render_lazy_instance_group(InstanceGroup *ig, Range *range, Camera *camera) {
+  int i;
+  mat4 cmatrix;
+  Model *m = ig->model;
+  GLint program, camera_handle, model_handle, tex_handle;
+
+  program = m->program->handle;
+
+	camera_get_matrix(camera, cmatrix);
+
+  glUseProgram(program);
+
+  camera_handle = glGetUniformLocation(program, "camera");
+  model_handle = glGetUniformLocation(program, "model");
+  tex_handle = glGetUniformLocation(program, "tex");
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, tex_handle); 
+
+	glBindVertexArray(m->vao);
+
+  if (range->parent) {
+    for (range->parent->currval = 0; range->parent->currval < range->parent->steps; range->parent->currval++) {
+    for (range->currval = 0; range->currval < range->steps; range->currval++) {
+      for (i = 0; i < ig->instances.size; i++) {
+        LazyInstance *li = ig->instances.buffer[i];
+        render_lazy_instance2(li, range, cmatrix, camera_handle, model_handle, tex_handle);
+      }
+    }
+    }
+  }
+
+  glBindVertexArray(0);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  glUseProgram(0);
 }
 
 void render_lazy_instance(LazyInstance *li, Camera *camera, Range *range) {
@@ -108,12 +203,43 @@ void render_lazy_instance(LazyInstance *li, Camera *camera, Range *range) {
 	render_instance(&instance, camera);
 }
 
+void render_lazy_instance2(LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
+    GLint model_handle, GLint tex_handle) {
+	Instance instance;	
+
+	instance.model = li->model;
+	instance.isSubjectToGravity = li->isSubjectToGravity;
+	instance.isStatic = li->isStatic;
+	instance.collision_space = li->collision_space;
+	instance.mass = li->mass;
+	instance.gravity_space = li->gravity_space;
+	instance.impulse = li->impulse;
+
+	//log_debug("posx: %s , posy: %s, posz: %s (x=%d)", li->px, li->py, li->pz, range->currval);
+	float posx = lazy_epxression_compute(range, li->px);
+	float posy = lazy_epxression_compute(range, li->py);
+	float posz = lazy_epxression_compute(range, li->pz);
+	//log_debug("posx: %f , posy: %f, posz: %f", posx, posy, posz);
+	instance.pos[0] = posx;
+	instance.pos[1] = posy;
+	instance.pos[2] = posz;
+
+	float scalex = lazy_epxression_compute(range, li->scalex);
+	float scaley = lazy_epxression_compute(range, li->scaley);
+	float scalez = lazy_epxression_compute(range, li->scalez);
+	instance.scale[0] = scalex;
+	instance.scale[1] = scaley;
+	instance.scale[2] = scalez;
+
+	render_instance2(&instance, cmatrix, camera_handle, model_handle, tex_handle);
+}
+
 void level_render(GLFWwindow *window, Level *level) {
 	int i;
 
 	for (i = 0; i < level->instances.size; i++) {
-		Instance *instance = level->instances.buffer[i];
-		render_instance(level->instances.buffer[i], &level->camera);
+		InstanceGroup *ig = level->instances.buffer[i];
+    render_instance_group(ig, &level->camera);
 	}
 
 	for (i = 0; i < level->ranges.size; i++) {
@@ -193,7 +319,7 @@ Instance *spawn_instance(Level *level) {
 	glm_vec3_scale(imp->force, 1E4, imp->force);
 	phys_add_impulse(inst, imp);
 
-	pointer_vector_add(pv, inst);
+	instance_group_add(pv, template->model, inst);
 	pointer_vector_add(&level->gravityObjects, inst);
 	return inst;
 }
