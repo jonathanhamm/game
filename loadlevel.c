@@ -82,7 +82,11 @@ static int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID);
 static int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext);
 static GLenum to_gl_shader(bob_shader_e shader_type);
 static char *sqlite3_strdup(const unsigned char *sqlstr);
-static Range2 *bob_partition_range(Range2 *range);
+static PointerVector *bob_get_range_roots(Range *range);
+static void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range);
+static Range *bob_partition_range(PointerVector *rangeRoots, Range *range, Model *m);
+static void bob_partition_range_node(Range* curr, Model *m);
+static bool ll_range_list_has_model(PointerVector *rangeRoots, Model *model);
 
 bob_db_s *bob_loaddb(const char *path) {
 	int rc;
@@ -209,7 +213,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	int steps, modelId, rangeId, childId;
 	const unsigned char *var;
 	bool cache;
-	Range *range;
+	Range *range
 	IntMap rangeMap;
 	PointerVector loadRanges;
 
@@ -724,7 +728,40 @@ static char *sqlite3_strdup(const unsigned char *sqlstr) {
 	return dupstr;
 }
 
-Range2 *bob_partition_range(Range2 *range) {
-  return NULL;
+PointerVector *bob_get_range_roots(Range *range) {
+	PointerVector *pv;
+	pv = malloc(sizeof *pv);
+	if (!pv) {
+		log_error("memory allocation error on range root");
+		return NULL;
+	}
+	pointer_vector_init(pv);
+	bob_visit_range_for_model(pv, range);
+	return pv;
+}
+
+void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range) {
+	size_t i;
+	for (i = 0; i < range->lazyinstances.size; i++) {
+		LazyInstance *lz = range->lazyinstances.buffer[i];
+		pointer_vector_add_if_not_exists(rangeRoots, lz->model);
+	}
+	if (range->child) {
+		bob_visit_range_for_model(rangeRoots, range->child);
+	}
+}
+
+Range *bob_partition_range(PointerVector *rangeRoots, Range *range) {
+		
+}
+
+bool ll_range_list_has_model(PointerVector *rangeRoots, Model *model) {
+	size_t i;
+	for (i = 0; i < rangeRoots->size; i++) {
+		RangeRoot *rangeRoot = rangeRoots->buffer[i];
+		if (rangeRoot->m == model)
+			return true;
+	}
+	return false;
 }
 

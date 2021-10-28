@@ -78,6 +78,7 @@ extern void float_buf_free(FloatBuf *b);
 
 extern int pointer_vector_init(PointerVector *pv);
 extern int pointer_vector_add(PointerVector *pv, void *p);
+extern int pointer_vector_add_if_not_exists(PointerVector *pv, void *p);
 extern void pointer_vector_free(PointerVector *pv);
 
 extern void bob_str_map_init(StrMap *m);

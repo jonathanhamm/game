@@ -206,6 +206,16 @@ int pointer_vector_add(PointerVector *vp, void *p) {
 	return STATUS_OK;
 }
 
+int pointer_vector_add_if_not_exists(PointerVector *pv, void *p) {
+	size_t i, size = pv->size;
+
+	for (i = 0; i < size; i++) {
+		if (pv->buffer[i] == p)
+			return STATUS_OK;
+	}
+	return pointer_vector_add(pv, p);
+}
+
 void pointer_vector_free(PointerVector *vp) {
 	free(vp->buffer);
 	vp->buffer = NULL;

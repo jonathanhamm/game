@@ -12,7 +12,7 @@ typedef struct Instance Instance;
 typedef struct LazyInstance LazyInstance;
 typedef struct InstanceGroup InstanceGroup;
 typedef struct Range Range;
-typedef struct Range2 Range2;
+typedef struct RangeRoot RangeRoot;
 typedef struct Level Level;
 
 struct Model {
@@ -79,18 +79,9 @@ struct Range {
 	PointerVector lazyinstances;
 };
 
-struct Range2 {
-	int steps;
-	int currval;
-	char var;
-	bool cache;
-	Range *parent;
-	union {
-		Range *child;
-		int childId;
-	};
-  Model *m;
-	PointerVector lazyinstances;
+struct RangeRoot {
+	Model *m;
+	PointerVector ranges;
 };
 
 struct Level {
