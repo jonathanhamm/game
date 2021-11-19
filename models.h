@@ -42,6 +42,7 @@ struct Instance {
 };
 
 struct LazyInstance {
+  int id;
 	Model *model;
 	float mass;
 	bool isSubjectToGravity;
@@ -67,6 +68,7 @@ struct InstanceGroup {
 };
 
 struct Range {
+  int id;
 	int steps;
 	int currval;
 	char var;

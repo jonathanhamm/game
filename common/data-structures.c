@@ -216,11 +216,6 @@ int pointer_vector_add_if_not_exists(PointerVector *pv, void *p) {
 	return pointer_vector_add(pv, p);
 }
 
-void pointer_vector_free(PointerVector *vp) {
-	free(vp->buffer);
-	vp->buffer = NULL;
-}
-
 void bob_str_map_init(StrMap *m) {
 	int i;
 

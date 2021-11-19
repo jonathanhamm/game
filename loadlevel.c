@@ -44,7 +44,7 @@ const char *range_qstr =
 " JOIN range AS r ON l.id=r.levelID"
 " WHERE l.name=?";
 const char *lazy_instance_qstr =
-"SELECT modelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic"
+"SELECT id, modelID, vx, vy, vz, scalex, scaley, scalez, mass, isSubjectToGravity, isStatic"
 " FROM lazy_instance"
 " WHERE rangeID=?";
 const char *model_qstr = 
@@ -82,11 +82,15 @@ static int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID);
 static int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext);
 static GLenum to_gl_shader(bob_shader_e shader_type);
 static char *sqlite3_strdup(const unsigned char *sqlstr);
+
+/** Range Partitioning **/
 static PointerVector *bob_get_range_roots(Range *range);
 static void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range);
 static Range *bob_partition_range(PointerVector *rangeRoots, Range *range, Model *m);
-static void bob_partition_range_node(Range* curr, Model *m);
-static bool ll_range_list_has_model(PointerVector *rangeRoots, Model *model);
+static RangeRoot *ll_range_get_range_root(PointerVector *rangeRoots, Model *model);
+static void range_get_path(PointerVector *pv, Range *range);
+static void range_add_node(RangeRoot *rangeRoot, PointerVector *path);
+/** **/
 
 bob_db_s *bob_loaddb(const char *path) {
 	int rc;
@@ -213,7 +217,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	int steps, modelId, rangeId, childId;
 	const unsigned char *var;
 	bool cache;
-	Range *range
+	Range *range;
 	IntMap rangeMap;
 	PointerVector loadRanges;
 
@@ -240,6 +244,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 				log_error("failed to allocate memory for range");
 				return -1;
 			}
+      range->id = rangeId;
 			range->steps = steps;
 			range->var = *var;
 			range->cache = cache;
@@ -299,7 +304,7 @@ int bob_dbload_range_decomp(Level *lvl, Range *range, bob_db_s *bdb,
 
 int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, 
 		int rangeID, PointerVector *pv) {
-	int rc, modelID;
+	int rc, id, modelID;
 	const unsigned char *vx, *vy, *vz, *scalex, *scaley, *scalez;
 	float mass;
 	bool isSubjectToGravity, isStatic;
@@ -318,16 +323,17 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 	while (1) {
 		rc = sqlite3_step(bdb->qlazyinstance);
 		if (rc == SQLITE_ROW) {
-			modelID = sqlite3_column_int(bdb->qlazyinstance, 0);
-			vx = sqlite3_column_text(bdb->qlazyinstance, 1);
-			vy = sqlite3_column_text(bdb->qlazyinstance, 2);
-			vz = sqlite3_column_text(bdb->qlazyinstance, 3);
-			scalex = sqlite3_column_text(bdb->qlazyinstance, 4);
-			scaley = sqlite3_column_text(bdb->qlazyinstance, 5);
-			scalez = sqlite3_column_text(bdb->qlazyinstance, 6);
-			mass = sqlite3_column_double(bdb->qlazyinstance, 7);
-			isSubjectToGravity = sqlite3_column_int(bdb->qlazyinstance, 8);
-			isStatic = sqlite3_column_int(bdb->qlazyinstance, 9);
+      id = sqlite3_column_int(bdb->qlazyinstance, 0);
+			modelID = sqlite3_column_int(bdb->qlazyinstance, 1);
+			vx = sqlite3_column_text(bdb->qlazyinstance, 2);
+			vy = sqlite3_column_text(bdb->qlazyinstance, 3);
+			vz = sqlite3_column_text(bdb->qlazyinstance, 4);
+			scalex = sqlite3_column_text(bdb->qlazyinstance, 5);
+			scaley = sqlite3_column_text(bdb->qlazyinstance, 6);
+			scalez = sqlite3_column_text(bdb->qlazyinstance, 7);
+			mass = sqlite3_column_double(bdb->qlazyinstance, 8);
+			isSubjectToGravity = sqlite3_column_int(bdb->qlazyinstance, 9);
+			isStatic = sqlite3_column_int(bdb->qlazyinstance, 10);
 			model = bob_dbload_model(bdb, modelID);
 
 			li = malloc(sizeof *li);
@@ -335,6 +341,7 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 				log_error("memory allocation error for new lazy instance");
 				return -1;
 			}
+      li->id = id;
 			li->px = sqlite3_strdup(vx);
 			li->py = sqlite3_strdup(vy);
 			li->pz = sqlite3_strdup(vz);
@@ -744,24 +751,76 @@ void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range) {
 	size_t i;
 	for (i = 0; i < range->lazyinstances.size; i++) {
 		LazyInstance *lz = range->lazyinstances.buffer[i];
-		pointer_vector_add_if_not_exists(rangeRoots, lz->model);
+    Model *model = lz->model;
+    if (!ll_range_get_range_root(rangeRoots, lz->model)) {
+      RangeRoot *rangeRoot = malloc(sizeof *rangeRoot);
+      if (!rangeRoot) {
+        log_error("error allocating memory for Rangeroot");
+        return;
+      }
+      rangeRoot->m = model;
+      pointer_vector_init(&rangeRoot->ranges);
+      pointer_vector_add(rangeRoots, rangeRoot);
+    }
 	}
 	if (range->child) {
 		bob_visit_range_for_model(rangeRoots, range->child);
 	}
 }
 
-Range *bob_partition_range(PointerVector *rangeRoots, Range *range) {
-		
-}
-
-bool ll_range_list_has_model(PointerVector *rangeRoots, Model *model) {
+RangeRoot *ll_range_get_range_root(PointerVector *rangeRoots, Model *model) {
 	size_t i;
 	for (i = 0; i < rangeRoots->size; i++) {
 		RangeRoot *rangeRoot = rangeRoots->buffer[i];
 		if (rangeRoot->m == model)
-			return true;
+			return rangeRoot;
 	}
-	return false;
+	return NULL;
 }
+
+void range_get_path(PointerVector *pv, Range *range) {
+  while (range) {
+    pointer_vector_add(pv, range);
+    range = range->parent;
+  }
+}
+
+Range *createRangeClone(Range *range, Range *parent) {
+  Range *rangeClone = malloc(sizeof *rangeClone);
+  if (!rangeClone) {
+    log_error("memory allocation error while cloning range");
+    return NULL;
+  }
+  rangeClone->id = range->id;
+  rangeClone->parent = range->parent;
+  rangeClone->lazyinstances = range->lazyinstances;
+  rangeClone->child = NULL;
+  return rangeClone;
+}
+
+void range_add_node_range(Range *range, PointerVector *path, int index) {
+  Range *currPathRange = path->buffer[index];
+  if (range->id == currPathRange->id) {
+    
+  } else {
+  }
+}
+
+void range_add_node(RangeRoot *rangeRoot, PointerVector *path) {
+  int i;
+
+  for (i = 0; i < rangeRoot->ranges.size; i++) {
+    int j = path->size - 1;
+    Range *currRange = rangeRoot->ranges.buffer[i];
+    Range *currPathRange = path->buffer[j];
+    if (currRange->id == currPathRange->id && j != 0) {
+      range_add_node_range(currRange->child, path, j - 1);
+      return;
+    }
+  }
+  if (i == rangeRoot->ranges.size) {
+    //add new range to rangeroot, based on duplicate of current range
+    //call range_add_node_range for path
+  }
+}   
 
