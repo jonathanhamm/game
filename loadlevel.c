@@ -294,6 +294,12 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	}
 	pointer_vector_free(&loadRanges);
 
+  /* Partition Ranges (testing) */
+  for (i = 0; i < lvl->ranges.size; i++) {
+    Range *currRange = lvl->ranges.buffer[i];
+    bob_get_range_roots(currRange);
+  }
+
 	return 0;
 }
 
@@ -752,8 +758,10 @@ void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range) {
 	for (i = 0; i < range->lazyinstances.size; i++) {
 		LazyInstance *lz = range->lazyinstances.buffer[i];
     Model *model = lz->model;
-    if (!ll_range_get_range_root(rangeRoots, lz->model)) {
-      RangeRoot *rangeRoot = malloc(sizeof *rangeRoot);
+    PointerVector rangePath;
+    RangeRoot *rangeRoot = ll_range_get_range_root(rangeRoots, lz->model);
+    if (!rangeRoot) {
+      rangeRoot = malloc(sizeof *rangeRoot);
       if (!rangeRoot) {
         log_error("error allocating memory for Rangeroot");
         return;
@@ -761,8 +769,12 @@ void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range) {
       rangeRoot->m = model;
       pointer_vector_init(&rangeRoot->ranges);
       pointer_vector_add(rangeRoots, rangeRoot);
-    }
-	}
+    } 	
+    pointer_vector_init(&rangePath);
+    range_get_path(&rangePath, range);
+    range_add_node(rangeRoot, &rangePath);
+    pointer_vector_free(&rangePath);
+  }
 	if (range->child) {
 		bob_visit_range_for_model(rangeRoots, range->child);
 	}
@@ -778,6 +790,7 @@ RangeRoot *ll_range_get_range_root(PointerVector *rangeRoots, Model *model) {
 	return NULL;
 }
 
+/** TODO: reconsider the need for this **/
 void range_get_path(PointerVector *pv, Range *range) {
   while (range) {
     pointer_vector_add(pv, range);
@@ -785,42 +798,70 @@ void range_get_path(PointerVector *pv, Range *range) {
   }
 }
 
-Range *createRangeClone(Range *range, Range *parent) {
+void range_add_filtered_instances(Range *newRange, Range *oldRange, Model *m) {
+  int i;
+
+  pointer_vector_init(&newRange->lazyinstances);
+  for (i = 0; i < oldRange->lazyinstances.size; i++) {
+    LazyInstance *li = oldRange->lazyinstances.buffer[i];
+    if (m == li->model) {
+      pointer_vector_add(&newRange->lazyinstances, li);
+    }
+  }
+}
+
+Range *createRangeClone(Range *range, Model *m, Range *parent) {
   Range *rangeClone = malloc(sizeof *rangeClone);
   if (!rangeClone) {
     log_error("memory allocation error while cloning range");
     return NULL;
   }
   rangeClone->id = range->id;
-  rangeClone->parent = range->parent;
-  rangeClone->lazyinstances = range->lazyinstances;
+  rangeClone->parent = parent;
+  if (parent) {
+    parent->child = rangeClone;
+  }
+  rangeClone->steps = range->steps;
+  rangeClone->currval = range->currval;
+  rangeClone->var = range->var;
+  rangeClone->cache = range->cache;
+  range_add_filtered_instances(rangeClone, range, m);
   rangeClone->child = NULL;
   return rangeClone;
 }
 
-void range_add_node_range(Range *range, PointerVector *path, int index) {
+void range_add_node_range(Range *range, Range *parent, Model *model, PointerVector *path, int index) {
+  if (index < 0)
+    return;
   Range *currPathRange = path->buffer[index];
+  if (!range) {
+    range = createRangeClone(currPathRange, model, parent);
+    range_add_node_range(range->child, range, model, path, index - 1);
+  }
   if (range->id == currPathRange->id) {
-    
+    range_add_node_range(range->child, range, model, path, index - 1); 
   } else {
+    log_error("Invalid State: got range id of %d, but expected %d", range->id, currPathRange->id);
   }
 }
 
 void range_add_node(RangeRoot *rangeRoot, PointerVector *path) {
   int i;
+  int j = path->size - 1;
+  Range *currPathRange = path->buffer[j];
+  Model *model = rangeRoot->m;
 
   for (i = 0; i < rangeRoot->ranges.size; i++) {
-    int j = path->size - 1;
     Range *currRange = rangeRoot->ranges.buffer[i];
-    Range *currPathRange = path->buffer[j];
-    if (currRange->id == currPathRange->id && j != 0) {
-      range_add_node_range(currRange->child, path, j - 1);
+    if (currRange->id == currPathRange->id) {
+      range_add_node_range(currRange->child, currRange, model, path, j - 1);
       return;
     }
   }
   if (i == rangeRoot->ranges.size) {
-    //add new range to rangeroot, based on duplicate of current range
-    //call range_add_node_range for path
+    Range *newRange = createRangeClone(currPathRange, rangeRoot->m, NULL);
+    range_add_node_range(newRange->child, newRange, model, path, j - 1);
+    pointer_vector_add(&rangeRoot->ranges, newRange);
   }
 }   
 
