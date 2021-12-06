@@ -84,7 +84,9 @@ static GLenum to_gl_shader(bob_shader_e shader_type);
 static char *sqlite3_strdup(const unsigned char *sqlstr);
 
 /** Range Partitioning **/
-static PointerVector *bob_get_range_roots(Range *range);
+static void bob_get_range_roots(PointerVector *ranges, PointerVector *result);
+
+
 static void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range);
 static Range *bob_partition_range(PointerVector *rangeRoots, Range *range, Model *m);
 static RangeRoot *ll_range_get_range_root(PointerVector *rangeRoots, Model *model);
@@ -295,9 +297,12 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	pointer_vector_free(&loadRanges);
 
   /* Partition Ranges (testing) */
-  for (i = 0; i < lvl->ranges.size; i++) {
-    Range *currRange = lvl->ranges.buffer[i];
-    bob_get_range_roots(currRange);
+  PointerVector rangePartition;
+  pointer_vector_init(&rangePartition);
+  bob_get_range_roots(&lvl->ranges, &rangePartition);
+
+  for (i = 0; i < rangePartition.size; i++) {
+    log_info("range partition: %p", rangePartition.buffer[i]);
   }
 
 	return 0;
@@ -741,16 +746,13 @@ static char *sqlite3_strdup(const unsigned char *sqlstr) {
 	return dupstr;
 }
 
-PointerVector *bob_get_range_roots(Range *range) {
-	PointerVector *pv;
-	pv = malloc(sizeof *pv);
-	if (!pv) {
-		log_error("memory allocation error on range root");
-		return NULL;
-	}
-	pointer_vector_init(pv);
-	bob_visit_range_for_model(pv, range);
-	return pv;
+void bob_get_range_roots(PointerVector *ranges, PointerVector *result) {
+  int i;
+
+  for (i = 0; i < ranges->size; i++) {
+    Range *currRange = ranges->buffer[i];
+	  bob_visit_range_for_model(result, currRange);
+  }
 }
 
 void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range) {
