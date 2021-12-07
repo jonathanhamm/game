@@ -13,11 +13,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-
 static void level_render(GLFWwindow *window, Level *level);
 static void render_instance(Instance *instance, Camera *camera);
-static void render_range(Range *range, Camera *camera);
+
+static void render_range(Range *range, Camera *camera, Model *m, GLint model_handle, GLint camera_handle, GLint tex_handle, mat4 cmatrix);
+static void render_range_root(RangeRoot *rangeRoot, Camera *camera);
+
 static void render_lazy_instance(LazyInstance *li, Camera *camera, Range *range);
+static void render_lazy_instance2(LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
+    GLint model_handle, GLint tex_handle) ;
+
 static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
 static Instance *spawn_instance(Level *level);
 
@@ -51,7 +56,6 @@ void render_instance(Instance *instance, Camera *camera) {
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, m->texture->handle); 
 
-
 	glUniformMatrix4fv(model_handle, 1, false, (const GLfloat *)mmatrix);
 	glUniformMatrix4fv(camera_handle, 1, false, (const GLfloat *)cmatrix);
 	glUniform1i(tex_handle, 0);
@@ -68,7 +72,6 @@ void render_instance(Instance *instance, Camera *camera) {
 void render_instance2(Instance *instance, mat4 cmatrix, GLint camera_handle, 
     GLint model_handle, GLint tex_handle) {
 	mat4 mmatrix;	
-
   Model *m = instance->model;
 
 	instance_get_matrix(instance, mmatrix);
@@ -78,22 +81,52 @@ void render_instance2(Instance *instance, mat4 cmatrix, GLint camera_handle,
 	glUniform1i(tex_handle, 0);
 
   glDrawArrays(m->drawType, m->drawStart, m->drawCount);
-
 }
 
 static void render_lazy_instance_group(InstanceGroup *ig, Range *range, Camera *camera);
 
-void render_range(Range *range, Camera *camera) {
-	int i;
+void render_range(Range *range, Camera *camera, Model *m, GLint model_handle, GLint camera_handle, GLint tex_handle, mat4 cmatrix) {
+  int i;
 
-  for (i = 0; i < range->lazyinstances.size; i++) {
-    InstanceGroup *ig = range->lazyinstances.buffer[i];
-    render_lazy_instance_group(ig, range, camera);
-  }
-  if (range->child) {
-    render_range(range->child, camera);
+  for (range->currval = 0; range->currval < range->steps; range->currval++) {
+    for (i = 0; i < range->lazyinstances.size; i++) {
+      LazyInstance *li = range->lazyinstances.buffer[i];
+      render_lazy_instance2(li, range, cmatrix, camera_handle, model_handle, tex_handle);
+    }
+    if (range->child) {
+      render_range(range->child, camera, m, model_handle, camera_handle, tex_handle, cmatrix);
+    }
   }
 }
+
+void render_range_root(RangeRoot *rangeRoot, Camera *camera) {
+  int i;
+  Model *m = rangeRoot->m;
+  mat4 cmatrix;
+  GLint program, camera_handle, model_handle, tex_handle;
+
+  camera_get_matrix(camera, cmatrix);
+  glUseProgram(m->program->handle);
+
+  camera_handle = glGetUniformLocation(program, "camera");
+  model_handle = glGetUniformLocation(program, "model");
+  tex_handle = glGetUniformLocation(program, "tex");
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, tex_handle); 
+
+  glBindVertexArray(m->vao);
+
+  for (i = 0; i < rangeRoot->ranges.size; i++) {
+    Range *currRange = rangeRoot->ranges.buffer[i]; 
+    render_range(currRange, camera, m, model_handle, camera_handle, tex_handle, cmatrix);
+  }
+
+  glBindVertexArray(0);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glUseProgram(0);
+}
+
 //
 //Instance *instance, mat4 cmatrix, GLint camera_handle, 
  //   GLint model_handle, GLint tex_handle
@@ -132,8 +165,6 @@ void render_instance_group(InstanceGroup *ig, Camera *camera) {
   glUseProgram(0);
 }
 
-static void render_lazy_instance2(LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
-    GLint model_handle, GLint tex_handle) ;
 
 void render_lazy_instance_group(InstanceGroup *ig, Range *range, Camera *camera) {
   int i;
@@ -224,7 +255,7 @@ void render_lazy_instance2(LazyInstance *li, Range *range, mat4 cmatrix, GLint c
 	instance.pos[1] = posy;
 	instance.pos[2] = posz;
 
-	float scalex = lazy_epxression_compute(range, li->scalex);
+  float scalex = lazy_epxression_compute(range, li->scalex);
 	float scaley = lazy_epxression_compute(range, li->scaley);
 	float scalez = lazy_epxression_compute(range, li->scalez);
 	instance.scale[0] = scalex;
@@ -243,8 +274,8 @@ void level_render(GLFWwindow *window, Level *level) {
 	}
 
 	for (i = 0; i < level->ranges.size; i++) {
-		Range *range = level->ranges.buffer[i];
-		render_range(range, &level->camera);	
+    RangeRoot *rangeRoot = level->ranges.buffer[i];
+    render_range_root(rangeRoot, &level->camera);
 	}
 
 }
@@ -414,7 +445,7 @@ void bob_start(void) {
 
 		GLenum error = glGetError();
 		if (error != GL_NO_ERROR) {
-			log_error("OpenGL Error: %d %d", error);
+			log_error("OpenGL Error: %d", error);
 			exit(1);
 		}
 
