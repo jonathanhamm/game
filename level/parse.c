@@ -2090,6 +2090,7 @@ void emit_range_batch(p_context_s *context, char *levelid, tnode_list_s ranges) 
 }
 
 char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
+
   StrMap *obj = range_node->val.obj;
 
   tnode_s *var = bob_str_map_get(obj, M_KEY("var"));
@@ -2112,7 +2113,7 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
   tnode_s *child = bob_str_map_get(obj, M_KEY("child"));
   if (child != NULL) {
     char *child_table = emit_range(context, levelid, child);
-    if (!emit_range(context, levelid, child)) {
+    if (!child_table) {
       return false;
     }
   	emit_code(" INSERT INTO range(levelID, steps, var, cache, child) VALUES\n", &context->rangeCode);

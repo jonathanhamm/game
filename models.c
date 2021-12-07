@@ -145,6 +145,7 @@ void instance_group_add(PointerVector *igs, Model *m, void *ptr) {
   ig->model = m;
   pointer_vector_init(&ig->instances);
   pointer_vector_add(&ig->instances, ptr);
+  log_debug("adding instance group %p with model %p", ig, m);
   pointer_vector_add(igs, ig);
 }
 

@@ -250,6 +250,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 			range->steps = steps;
 			range->var = *var;
 			range->cache = cache;
+      range->child = NULL;
 			range->childId = childId;
 			range->currval = 0;
 			range->parent = NULL;
@@ -291,7 +292,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
 	for (i = 0; i < loadRanges.size; i++) {
 		Range *curr = loadRanges.buffer[i];
 		if (!curr->parent) {
-			pointer_vector_add(&lvl->ranges, range);
+			pointer_vector_add(&lvl->ranges, curr);
 		}
 	}
 	pointer_vector_free(&loadRanges);
@@ -345,7 +346,6 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 			mass = sqlite3_column_double(bdb->qlazyinstance, 8);
 			isSubjectToGravity = sqlite3_column_int(bdb->qlazyinstance, 9);
 			isStatic = sqlite3_column_int(bdb->qlazyinstance, 10);
-			model = bob_dbload_model(bdb, modelID);
 
 			li = malloc(sizeof *li);
 			if (!li) {
@@ -362,6 +362,7 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 			li->mass = mass;
 			li->isSubjectToGravity = isSubjectToGravity;
 			li->isStatic = isStatic;
+			model = bob_dbload_model(bdb, modelID);
 			li->model = model;
 			glm_vec3_zero(li->velocity);
 			glm_vec3_zero(li->acceleration);
@@ -747,7 +748,16 @@ static char *sqlite3_strdup(const unsigned char *sqlstr) {
 }
 
 void bob_get_range_roots(PointerVector *ranges, PointerVector *result) {
-  int i;
+  int i, j;
+
+  for (i = 0; i < ranges->size; i++) {
+    Range *currRange = ranges->buffer[i];
+    PointerVector *lis = &currRange->lazyinstances;
+    for (j = 0; j < lis->size; j++) {
+      LazyInstance *li = lis->buffer[i];
+      //log_debug("lazy instance id: %d -- %d -- %d", li->id, j, i);
+    }
+  }
 
   for (i = 0; i < ranges->size; i++) {
     Range *currRange = ranges->buffer[i];
@@ -758,11 +768,12 @@ void bob_get_range_roots(PointerVector *ranges, PointerVector *result) {
 void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range) {
 	size_t i;
 	for (i = 0; i < range->lazyinstances.size; i++) {
-		LazyInstance *lz = range->lazyinstances.buffer[i];
-    Model *model = lz->model;
+		InstanceGroup *ig = range->lazyinstances.buffer[i];
+    Model *model = ig->model;
     PointerVector rangePath;
-    RangeRoot *rangeRoot = ll_range_get_range_root(rangeRoots, lz->model);
+    RangeRoot *rangeRoot = ll_range_get_range_root(rangeRoots, ig->model);
     if (!rangeRoot) {
+      log_debug("creating new range root for model: %p", ig->model);
       rangeRoot = malloc(sizeof *rangeRoot);
       if (!rangeRoot) {
         log_error("error allocating memory for Rangeroot");
@@ -805,9 +816,9 @@ void range_add_filtered_instances(Range *newRange, Range *oldRange, Model *m) {
 
   pointer_vector_init(&newRange->lazyinstances);
   for (i = 0; i < oldRange->lazyinstances.size; i++) {
-    LazyInstance *li = oldRange->lazyinstances.buffer[i];
-    if (m == li->model) {
-      pointer_vector_add(&newRange->lazyinstances, li);
+    InstanceGroup *ig = oldRange->lazyinstances.buffer[i];
+    if (m == ig->model) {
+      pointer_vector_add(&newRange->lazyinstances, ig);
     }
   }
 }

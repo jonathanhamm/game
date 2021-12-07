@@ -158,12 +158,12 @@ void render_lazy_instance_group(InstanceGroup *ig, Range *range, Camera *camera)
 
   if (range->parent) {
     for (range->parent->currval = 0; range->parent->currval < range->parent->steps; range->parent->currval++) {
-    for (range->currval = 0; range->currval < range->steps; range->currval++) {
-      for (i = 0; i < ig->instances.size; i++) {
-        LazyInstance *li = ig->instances.buffer[i];
-        render_lazy_instance2(li, range, cmatrix, camera_handle, model_handle, tex_handle);
+      for (range->currval = 0; range->currval < range->steps; range->currval++) {
+        for (i = 0; i < ig->instances.size; i++) {
+          LazyInstance *li = ig->instances.buffer[i];
+          render_lazy_instance2(li, range, cmatrix, camera_handle, model_handle, tex_handle);
+        }
       }
-    }
     }
   }
 
@@ -254,7 +254,7 @@ void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
 	camera->gdegrees_rotated += secondsElapsed * degreesPerSecond;
 	while(camera->gdegrees_rotated > 360.0f) camera->gdegrees_rotated -= 360.0f;
 	vec3 result;
-	const float moveSpeed = 5; //units per second
+	const float moveSpeed = 100; //units per second
 	if(glfwGetKey(window, 'S')){
 		camera_forward(camera, result);
 		glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
