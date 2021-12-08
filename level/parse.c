@@ -2215,7 +2215,7 @@ bool emit_lazy_instance(p_context_s *context, char *rangeid, tnode_s *lazy_insta
   CharBuf xbuf = val_to_str(vx);
 
 	tnode_s *vy = bob_str_map_get(obj, M_KEY("y"));
-  if (!vx) {
+  if (!vy) {
     report_semantics_error("Instance missing required 'y' property", context);
     return false;
   }

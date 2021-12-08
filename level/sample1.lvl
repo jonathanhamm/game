@@ -296,7 +296,12 @@
 					{"x": "30*x", "y": "y", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m1},
 					{"x": "30*x", "y": "y", "z": tunnelWidth, "scalex": 10, "mass": 1.0, "model": m1},
 					{"x": "30*x", "y": "0", "z": "y", "mass": 1.0, "scalex": 10, "model": m1},
-					{"x": "30*x", "y": tunnelWidth, "z": "y", "scalex": 10, "mass": 1.0, "model": m1}
+					{"x": "30*x", "y": tunnelWidth, "z": "y", "scalex": 10, "mass": 1.0, "model": m1},
+					/*****/
+					{"x": "0", "y": "30*x", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m1},
+					{"x": tunnelWidth, "y": "30*x", "z": tunnelWidth, "scalex": 10, "mass": 1.0, "model": m1},
+					{"x": "y", "y": "30*x", "z": "y", "mass": 1.0, "scalex": 10, "model": m1},
+					{"x": "y", "y": "30*x", "z": "y", "scalex": 10, "mass": 1.0, "model": m1}
 				]
 			},
 			"instances": [
