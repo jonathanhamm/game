@@ -67,8 +67,7 @@ const char *texture_qstr =
 static sqlite3_stmt *query_level;
 
 static int prepare_queries(bob_db_s *bdb);
-static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, 
-		const char *name);
+static int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name);
 static int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name);
 static int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name);
 static int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb, 
@@ -78,17 +77,23 @@ static void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID);
 static int bob_dbload_program(bob_db_s *bdb, Model *m, int programID);
 static int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID);
 static int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext);
-static GLenum to_gl_shader(bob_shader_e shader_type);
-static char *sqlite3_strdup(const unsigned char *sqlstr);
 
 /** Range Partitioning **/
 static void bob_get_range_roots(PointerVector *ranges, PointerVector *result);
 static void bob_visit_range_for_model(PointerVector *rangeRoots, Range *range);
-static Range *bob_partition_range(PointerVector *rangeRoots, Range *range, Model *m);
 static RangeRoot *ll_range_get_range_root(PointerVector *rangeRoots, Model *model);
 static void range_get_path(PointerVector *pv, Range *range);
+static void range_add_filtered_instances(Range *newRange, Range *oldRange, Model *m);
+static Range *createRangeClone(Range *range, Model *m, Range *parent);
+static void range_add_node_range(Range *range, Range *parent, Model *model, 
+    PointerVector *path, int index);
 static void range_add_node(RangeRoot *rangeRoot, PointerVector *path);
 /** **/
+
+/** misc **/
+static GLenum to_gl_shader(bob_shader_e shader_type);
+static char *sqlite3_strdup(const unsigned char *sqlstr);
+
 
 bob_db_s *bob_loaddb(const char *path) {
 	int rc;
@@ -135,6 +140,86 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
 	if (rc < 0)
 		return NULL;
 	return lvl;
+}
+
+int prepare_queries(bob_db_s *bdb) {
+	int rc;
+
+	rc = sqlite3_prepare_v2(bdb->db, level_ambient_gravity_qstr, -1, 
+			&bdb->qambientgravity, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare ambientGravity query");
+		return -1;
+	}
+	rc = sqlite3_prepare_v2(bdb->db, instance_qstr, -1, &bdb->qinstance, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare instance query");
+		return -1;
+	}
+	rc = sqlite3_prepare_v2(bdb->db, range_qstr, -1, &bdb->qrange, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare range query");
+		return -1;
+	}
+	rc = sqlite3_prepare_v2(bdb->db, lazy_instance_qstr, -1, &bdb->qlazyinstance, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare lazy instance query");
+		return -1;
+	}
+	rc = sqlite3_prepare_v2(bdb->db, model_qstr, -1, &bdb->qmodel, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare model query");
+		return -1;
+	}
+	rc = sqlite3_prepare_v2(bdb->db, mesh_qstr, -1, &bdb->qmesh, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare mesh query");
+		return -1;
+	}
+	rc = sqlite3_prepare_v2(bdb->db, shader_qstr, -1, &bdb->qshader, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare shader query");
+		return -1;
+	}
+	rc = sqlite3_prepare_v2(bdb->db, texture_qstr, -1, &bdb->qtexture, 0);
+	if (rc != SQLITE_OK) {
+		log_error("failed to prepare texture query");
+		return -1;
+	}
+	log_info("texture handle: %p", bdb->qtexture);
+	return 0;
+}
+
+int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name) {
+	int rc;
+	double agx, agy, agz;
+
+	log_debug("loading ambient gravity");
+
+	rc = sqlite3_bind_text(bdb->qambientgravity, 1, name, -1, NULL);
+	if (rc != SQLITE_OK) {
+		log_error("failed to bind level name parameter to level query");
+		return -1;
+	}
+	rc = sqlite3_step(bdb->qambientgravity);
+	if (rc == SQLITE_ROW) {
+		agx = sqlite3_column_double(bdb->qambientgravity, 0);
+		agy = sqlite3_column_double(bdb->qambientgravity, 1);
+		agz = sqlite3_column_double(bdb->qambientgravity, 2);
+		lvl->ambient_gravity[0] = agx;
+		lvl->ambient_gravity[1] = agy;
+		lvl->ambient_gravity[2] = agz;
+	}
+	else {
+		log_error("Databse error occurred during ambient gravity query.");
+		return -1;
+	}
+	rc = sqlite3_step(bdb->qambientgravity);
+	if (rc != SQLITE_DONE) {
+		log_error("Database in invalid format at ambient gravity query.");
+		return -1;
+	}
+  return 0;
 }
 
 int bob_dbload_instances(Level *lvl, bob_db_s *bdb, const char *name) {
@@ -297,6 +382,7 @@ int bob_dbload_ranges(Level *lvl, bob_db_s *bdb, const char *name) {
   /* Partition Ranges (testing) */
 	pointer_vector_init(&lvl->ranges);
   bob_get_range_roots(&rangeRoots, &lvl->ranges);
+  pointer_vector_free(&rangeRoots);
 
   for (i = 0; i < lvl->ranges.size; i++) {
     log_info("range partition: %p", lvl->ranges.buffer[i]);
@@ -374,85 +460,6 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 		}
 	}
 	sqlite3_reset(bdb->qlazyinstance);
-	return 0;
-}
-
-int bob_dbload_ambient_gravity(Level *lvl, bob_db_s *bdb, const char *name) {
-	int rc;
-	double agx, agy, agz;
-
-	log_debug("loading ambient gravity");
-
-	rc = sqlite3_bind_text(bdb->qambientgravity, 1, name, -1, NULL);
-	if (rc != SQLITE_OK) {
-		log_error("failed to bind level name parameter to level query");
-		return -1;
-	}
-	rc = sqlite3_step(bdb->qambientgravity);
-	if (rc == SQLITE_ROW) {
-		agx = sqlite3_column_double(bdb->qambientgravity, 0);
-		agy = sqlite3_column_double(bdb->qambientgravity, 1);
-		agz = sqlite3_column_double(bdb->qambientgravity, 2);
-		lvl->ambient_gravity[0] = agx;
-		lvl->ambient_gravity[1] = agy;
-		lvl->ambient_gravity[2] = agz;
-	}
-	else {
-		log_error("Databse error occurred during ambient gravity query.");
-		return -1;
-	}
-	rc = sqlite3_step(bdb->qambientgravity);
-	if (rc != SQLITE_DONE) {
-		log_error("Database in invalid format at ambient gravity query.");
-		return -1;
-	}
-}
-
-int prepare_queries(bob_db_s *bdb) {
-	int rc;
-
-	rc = sqlite3_prepare_v2(bdb->db, level_ambient_gravity_qstr, -1, 
-			&bdb->qambientgravity, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare ambientGravity query");
-		return -1;
-	}
-	rc = sqlite3_prepare_v2(bdb->db, instance_qstr, -1, &bdb->qinstance, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare instance query");
-		return -1;
-	}
-	rc = sqlite3_prepare_v2(bdb->db, range_qstr, -1, &bdb->qrange, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare range query");
-		return -1;
-	}
-	rc = sqlite3_prepare_v2(bdb->db, lazy_instance_qstr, -1, &bdb->qlazyinstance, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare lazy instance query");
-		return -1;
-	}
-	rc = sqlite3_prepare_v2(bdb->db, model_qstr, -1, &bdb->qmodel, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare model query");
-		return -1;
-	}
-	rc = sqlite3_prepare_v2(bdb->db, mesh_qstr, -1, &bdb->qmesh, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare mesh query");
-		return -1;
-	}
-	rc = sqlite3_prepare_v2(bdb->db, shader_qstr, -1, &bdb->qshader, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare shader query");
-		return -1;
-	}
-	rc = sqlite3_prepare_v2(bdb->db, texture_qstr, -1, &bdb->qtexture, 0);
-	if (rc != SQLITE_OK) {
-		log_error("failed to prepare texture query");
-		return -1;
-	}
-	log_info("texture handle: %p", bdb->qtexture);
 	return 0;
 }
 
@@ -580,6 +587,10 @@ int bob_dbload_program(bob_db_s *bdb, Model *m, int programID) {
 			src = sqlite3_column_text(bdb->qshader, 2);
 			gl_type = to_gl_shader(bob_type);
 			shader = malloc(sizeof *shader);
+      if (!shader) {
+        log_error("failed to allocate memory for shader");
+        exit(1);
+      }
 			rc = gl_load_shader(shader, gl_type, src, name);
 			if (rc != STATUS_OK) {
 				log_error("failed to load shader: %s.", name);
@@ -706,41 +717,8 @@ int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext) {
 	return 0;
 }
 
-GLenum to_gl_shader(bob_shader_e shader_type) {
-	switch(shader_type) {
-		case BOB_VERTEX_SHADER:
-			return GL_VERTEX_SHADER;
-		case BOB_TESS_EVAL_SHADER:
-			return GL_TESS_EVALUATION_SHADER;
-		case BOB_TESS_CONTROL_SHADER:
-			return GL_TESS_CONTROL_SHADER;
-		case BOB_GEOMETRY_SHADER:
-			return GL_GEOMETRY_SHADER;
-		case BOB_FRAGMENT_SHADER:
-			return GL_FRAGMENT_SHADER;
-		case BOB_COMPUTE_SHADER:
-			return GL_COMPUTE_SHADER;
-		default:
-			log_error("unknown shader type: %d", shader_type);
-			break;
-	}
-	return -1;
-}
-
-static char *sqlite3_strdup(const unsigned char *sqlstr) {
-	size_t len = strlen((const char *)sqlstr);
-	char *dupstr = malloc(len);
-	if (!dupstr) {
-		log_error("error allocating memory for read sqlite database text field.");
-		return NULL;
-	}
-	strcpy(dupstr, (const char*)sqlstr);
-	return dupstr;
-}
-
 void bob_get_range_roots(PointerVector *ranges, PointerVector *result) {
   int i, j;
-
   for (i = 0; i < ranges->size; i++) {
     Range *currRange = ranges->buffer[i];
 	  bob_visit_range_for_model(result, currRange);
@@ -859,4 +837,36 @@ void range_add_node(RangeRoot *rangeRoot, PointerVector *path) {
     pointer_vector_add(&rangeRoot->ranges, newRange);
   }
 }   
+
+GLenum to_gl_shader(bob_shader_e shader_type) {
+	switch(shader_type) {
+		case BOB_VERTEX_SHADER:
+			return GL_VERTEX_SHADER;
+		case BOB_TESS_EVAL_SHADER:
+			return GL_TESS_EVALUATION_SHADER;
+		case BOB_TESS_CONTROL_SHADER:
+			return GL_TESS_CONTROL_SHADER;
+		case BOB_GEOMETRY_SHADER:
+			return GL_GEOMETRY_SHADER;
+		case BOB_FRAGMENT_SHADER:
+			return GL_FRAGMENT_SHADER;
+		case BOB_COMPUTE_SHADER:
+			return GL_COMPUTE_SHADER;
+		default:
+			log_error("unknown shader type: %d", shader_type);
+			break;
+	}
+	return -1;
+}
+
+static char *sqlite3_strdup(const unsigned char *sqlstr) {
+	size_t len = strlen((const char *)sqlstr);
+	char *dupstr = malloc(len);
+	if (!dupstr) {
+		log_error("error allocating memory for read sqlite database text field.");
+		return NULL;
+	}
+	strcpy(dupstr, (const char*)sqlstr);
+	return dupstr;
+}
 
