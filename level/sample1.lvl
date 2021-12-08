@@ -280,7 +280,7 @@
   }
 
 	Int tunnelLength := 100
-	Int tunnelWidth := 20
+	Int tunnelWidth := 25
 	Level turd := {
 		"name": derp,
     "ambientGravity": [0, 0, -9.81],

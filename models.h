@@ -7,12 +7,15 @@
 #include <cglm/cglm.h>
 #include <GL/glew.h>
 
+#define RENDER_BUFFER_SIZE 100
+
 typedef struct Model Model;
 typedef struct Instance Instance;
 typedef struct LazyInstance LazyInstance;
 typedef struct InstanceGroup InstanceGroup;
 typedef struct Range Range;
 typedef struct RangeRoot RangeRoot;
+typedef struct RenderBuffer RenderBuffer;
 typedef struct Level Level;
 
 struct Model {
@@ -86,6 +89,11 @@ struct RangeRoot {
 	PointerVector ranges;
 };
 
+struct RenderBuffer {
+  int pos;
+  mat4 translations[RENDER_BUFFER_SIZE];
+};
+
 struct Level {
 	double t0;
 	Camera camera;
@@ -93,6 +101,7 @@ struct Level {
 	PointerVector instances;
 	PointerVector ranges;
 	PointerVector gravityObjects;
+  RenderBuffer renderBuffer;
 };
 
 extern Model *get_model_test1(void);

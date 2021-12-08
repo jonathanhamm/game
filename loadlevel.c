@@ -130,6 +130,8 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
 		return NULL;
 	}
 
+  lvl->renderBuffer.pos = 0;
+
 	rc = bob_dbload_ambient_gravity(lvl, bdb, name);
 	if (rc < 0)
 		return NULL;

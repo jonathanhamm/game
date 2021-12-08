@@ -26,6 +26,9 @@ static void render_lazy_instance(LazyInstance *li, Range *range, mat4 cmatrix, G
 static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
 static Instance *spawn_instance(Level *level);
 
+static void buffered_render(Level *level, Model *m, GLint model_handel, mat4 mmatrix);
+
+
 /** callbacks **/
 static void error_callback(int error, const char *description);
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -91,6 +94,9 @@ void bob_start(void) {
 	}
 
 	while (!glfwWindowShouldClose(window)) {
+		double currTime = glfwGetTime();
+		float dt = currTime - level.t0;
+
 		glfwPollEvents();
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -106,8 +112,9 @@ void bob_start(void) {
 			debounce++;
 		} 
 
-		double currTime = glfwGetTime();
-		float dt = currTime - level.t0;
+    if (!debounce)
+      log_debug("dt: %f", dt*100);
+
 
 		update(window, &level.camera, dt);
 		phys_compute_force(&level);
@@ -122,7 +129,6 @@ void bob_start(void) {
 			log_error("OpenGL Error: %d", error);
 			exit(1);
 		}
-
 		level.t0 = currTime;
 	}
 	glfwDestroyWindow(window);
@@ -142,7 +148,6 @@ void level_render(GLFWwindow *window, Level *level) {
     RangeRoot *rangeRoot = level->ranges.buffer[i];
     render_range_root(rangeRoot, &level->camera);
 	}
-
 }
 
 void render_instance_group(InstanceGroup *ig, Camera *camera) {
@@ -161,6 +166,8 @@ void render_instance_group(InstanceGroup *ig, Camera *camera) {
   model_handle = glGetUniformLocation(program, "model");
   camera_handle = glGetUniformLocation(program, "camera");
   tex_handle = glGetUniformLocation(program, "tex");
+
+	glUniformMatrix4fv(camera_handle, 1, false, (const GLfloat *)cmatrix);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, tex_handle); 
@@ -218,7 +225,6 @@ void render_instance2(Instance *instance, mat4 cmatrix, GLint camera_handle,
 	instance_get_matrix(instance, mmatrix);
 
 	glUniformMatrix4fv(model_handle, 1, false, (const GLfloat *)mmatrix);
-	glUniformMatrix4fv(camera_handle, 1, false, (const GLfloat *)cmatrix);
 	glUniform1i(tex_handle, 0);
 
   glDrawArrays(m->drawType, m->drawStart, m->drawCount);
@@ -228,10 +234,10 @@ void render_range_root(RangeRoot *rangeRoot, Camera *camera) {
   int i;
   Model *m = rangeRoot->m;
   mat4 cmatrix;
-  GLint program, camera_handle, model_handle, tex_handle;
+  GLint program = m->program->handle, camera_handle, model_handle, tex_handle;
 
   camera_get_matrix(camera, cmatrix);
-  glUseProgram(m->program->handle);
+  glUseProgram(program);
 
   camera_handle = glGetUniformLocation(program, "camera");
   model_handle = glGetUniformLocation(program, "model");
@@ -241,6 +247,8 @@ void render_range_root(RangeRoot *rangeRoot, Camera *camera) {
   glBindTexture(GL_TEXTURE_2D, tex_handle); 
 
   glBindVertexArray(m->vao);
+
+	glUniformMatrix4fv(camera_handle, 1, false, (const GLfloat *)cmatrix);
 
   for (i = 0; i < rangeRoot->ranges.size; i++) {
     Range *currRange = rangeRoot->ranges.buffer[i]; 
@@ -370,6 +378,18 @@ Instance *spawn_instance(Level *level) {
 	return inst;
 }
 
+void buffered_render(Level *level, Model *m, GLint model_handel, mat4 mmatrix) {
+  RenderBuffer *rb = &level->renderBuffer;
+
+  glm_mat4_copy(mmatrix, rb->translations[rb->pos]);
+  rb->pos++;
+
+  if (rb->pos == RENDER_BUFFER_SIZE ) {
+	  glUniformMatrix4fv(model_handel, RENDER_BUFFER_SIZE, false, (const GLfloat *)rb->translations);
+    glDrawArraysInstanced(m->drawType, m->drawStart, m->drawCount, RENDER_BUFFER_SIZE);
+    rb->pos = 0;
+  }
+}
 
 void error_callback(int error, const char* description)
 {
