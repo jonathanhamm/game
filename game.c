@@ -17,16 +17,17 @@ static void level_render(GLFWwindow *window, Level *level);
 static void render_instance_group(InstanceGroup *ig, Camera *camera);
 
 static void render_instance(Instance *instance, Camera *camera);
-static void render_instance2(Instance *instance, mat4 cmatrix, GLint camera_handle, 
+static void render_instance2(Level *level, Instance *instance, mat4 cmatrix, GLint camera_handle, 
     GLint model_handle, GLint tex_handle);
-static void render_range_root(RangeRoot *rangeRoot, Camera *camera);
-static void render_range(Range *range, Camera *camera, Model *m, GLint model_handle, GLint camera_handle, GLint tex_handle, mat4 cmatrix);
-static void render_lazy_instance(LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
+static void render_range_root(Level *level, RangeRoot *rangeRoot, Camera *camera);
+static void render_range(Level *level, Range *range, Camera *camera, Model *m, GLint model_handle, GLint camera_handle, GLint tex_handle, mat4 cmatrix);
+static void render_lazy_instance(Level *level, LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
     GLint model_handle, GLint tex_handle) ;
 static void update(GLFWwindow *window, Camera *camera, float secondsElapsed);
 static Instance *spawn_instance(Level *level);
 
-static void buffered_render(Level *level, Model *m, GLint model_handel, mat4 mmatrix);
+static void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale);
+static void buffered_render_finalize(Level *level, Model *m);
 
 
 /** callbacks **/
@@ -141,12 +142,12 @@ void level_render(GLFWwindow *window, Level *level) {
 
 	for (i = 0; i < level->instances.size; i++) {
 		InstanceGroup *ig = level->instances.buffer[i];
-    render_instance_group(ig, &level->camera);
+    //render_instance_group(ig, &level->camera);
 	}
 
 	for (i = 0; i < level->ranges.size; i++) {
     RangeRoot *rangeRoot = level->ranges.buffer[i];
-    render_range_root(rangeRoot, &level->camera);
+    render_range_root(level, rangeRoot, &level->camera);
 	}
 }
 
@@ -176,7 +177,7 @@ void render_instance_group(InstanceGroup *ig, Camera *camera) {
 
   for (i = 0; i < ig->instances.size; i++) {
     Instance *inst = ig->instances.buffer[i];
-    render_instance2(inst, cmatrix, camera_handle, model_handle, tex_handle);
+    //render_instance2(level, inst, cmatrix, camera_handle, model_handle, tex_handle);
   }
 
   glBindVertexArray(0);
@@ -217,20 +218,16 @@ void render_instance(Instance *instance, Camera *camera) {
 	glUseProgram(0);
 }
 
-void render_instance2(Instance *instance, mat4 cmatrix, GLint camera_handle, 
+void render_instance2(Level *level, Instance *instance, mat4 cmatrix, GLint camera_handle, 
     GLint model_handle, GLint tex_handle) {
-	mat4 mmatrix;	
   Model *m = instance->model;
 
-	instance_get_matrix(instance, mmatrix);
-
-	glUniformMatrix4fv(model_handle, 1, false, (const GLfloat *)mmatrix);
 	glUniform1i(tex_handle, 0);
 
-  glDrawArrays(m->drawType, m->drawStart, m->drawCount);
+  buffered_render(level, m, instance->pos, instance->scale);
 }
 
-void render_range_root(RangeRoot *rangeRoot, Camera *camera) {
+void render_range_root(Level *level, RangeRoot *rangeRoot, Camera *camera) {
   int i;
   Model *m = rangeRoot->m;
   mat4 cmatrix;
@@ -240,7 +237,7 @@ void render_range_root(RangeRoot *rangeRoot, Camera *camera) {
   glUseProgram(program);
 
   camera_handle = glGetUniformLocation(program, "camera");
-  model_handle = glGetUniformLocation(program, "model");
+  //model_handle = glGetUniformLocation(program, "model");
   tex_handle = glGetUniformLocation(program, "tex");
 
   glActiveTexture(GL_TEXTURE0);
@@ -252,29 +249,31 @@ void render_range_root(RangeRoot *rangeRoot, Camera *camera) {
 
   for (i = 0; i < rangeRoot->ranges.size; i++) {
     Range *currRange = rangeRoot->ranges.buffer[i]; 
-    render_range(currRange, camera, m, model_handle, camera_handle, tex_handle, cmatrix);
+    render_range(level, currRange, camera, m, model_handle, camera_handle, tex_handle, cmatrix);
   }
+
+  buffered_render_finalize(level, m);
 
   glBindVertexArray(0);
   glBindTexture(GL_TEXTURE_2D, 0);
   glUseProgram(0);
 }
 
-void render_range(Range *range, Camera *camera, Model *m, GLint model_handle, GLint camera_handle, GLint tex_handle, mat4 cmatrix) {
+void render_range(Level *level, Range *range, Camera *camera, Model *m, GLint model_handle, GLint camera_handle, GLint tex_handle, mat4 cmatrix) {
   int i;
 
   for (range->currval = 0; range->currval < range->steps; range->currval++) {
     for (i = 0; i < range->lazyinstances.size; i++) {
       LazyInstance *li = range->lazyinstances.buffer[i];
-      render_lazy_instance(li, range, cmatrix, camera_handle, model_handle, tex_handle);
+      render_lazy_instance(level, li, range, cmatrix, camera_handle, model_handle, tex_handle);
     }
     if (range->child) {
-      render_range(range->child, camera, m, model_handle, camera_handle, tex_handle, cmatrix);
+      render_range(level, range->child, camera, m, model_handle, camera_handle, tex_handle, cmatrix);
     }
   }
 }
 
-void render_lazy_instance(LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
+void render_lazy_instance(Level *level, LazyInstance *li, Range *range, mat4 cmatrix, GLint camera_handle,
     GLint model_handle, GLint tex_handle) {
 	Instance instance;	
 
@@ -301,7 +300,7 @@ void render_lazy_instance(LazyInstance *li, Range *range, mat4 cmatrix, GLint ca
 	instance.scale[1] = scaley;
 	instance.scale[2] = scalez;
 
-	render_instance2(&instance, cmatrix, camera_handle, model_handle, tex_handle);
+	render_instance2(level, &instance, cmatrix, camera_handle, model_handle, tex_handle);
 }
 
 void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
@@ -378,17 +377,33 @@ Instance *spawn_instance(Level *level) {
 	return inst;
 }
 
-void buffered_render(Level *level, Model *m, GLint model_handel, mat4 mmatrix) {
+void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale) {
   RenderBuffer *rb = &level->renderBuffer;
 
-  glm_mat4_copy(mmatrix, rb->translations[rb->pos]);
+  glm_vec3_copy(pos, rb->buffer[rb->pos]);
+  glm_vec3_copy(scale, rb->buffer[RENDER_BUFFER_SIZE + rb->pos]);
+
   rb->pos++;
 
   if (rb->pos == RENDER_BUFFER_SIZE ) {
-	  glUniformMatrix4fv(model_handel, RENDER_BUFFER_SIZE, false, (const GLfloat *)rb->translations);
+    glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(rb->buffer), &rb->buffer[0], GL_DYNAMIC_COPY);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     glDrawArraysInstanced(m->drawType, m->drawStart, m->drawCount, RENDER_BUFFER_SIZE);
     rb->pos = 0;
   }
+}
+
+void buffered_render_finalize(Level *level, Model *m) {
+  RenderBuffer *rb = &level->renderBuffer;
+  glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(*rb->buffer)*rb->pos, &rb->buffer[0]);
+  glBufferSubData(GL_ARRAY_BUFFER, sizeof(*rb->buffer)*RENDER_BUFFER_SIZE, sizeof(*rb->buffer)*rb->pos, 
+      &rb->buffer[RENDER_BUFFER_SIZE]);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glDrawArraysInstanced(m->drawType, m->drawStart, m->drawCount, rb->pos);
+  rb->pos = 0;
 }
 
 void error_callback(int error, const char* description)

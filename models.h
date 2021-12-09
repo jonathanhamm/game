@@ -7,7 +7,7 @@
 #include <cglm/cglm.h>
 #include <GL/glew.h>
 
-#define RENDER_BUFFER_SIZE 100
+#define RENDER_BUFFER_SIZE 256
 
 typedef struct Model Model;
 typedef struct Instance Instance;
@@ -23,6 +23,10 @@ struct Model {
 	GlTexture *texture;
 	GLuint vbo;
 	GLuint vao;
+  GLuint pvbo;
+  GLuint pvao;
+  GLuint svbo;
+  GLuint svao;
 	GLenum drawType;
 	GLint drawStart;
 	GLint drawCount;
@@ -91,7 +95,7 @@ struct RangeRoot {
 
 struct RenderBuffer {
   int pos;
-  mat4 translations[RENDER_BUFFER_SIZE];
+  vec3 buffer[2*RENDER_BUFFER_SIZE];
 };
 
 struct Level {

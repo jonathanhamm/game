@@ -550,7 +550,21 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
 		glVertexAttribPointer(handle, 2, GL_FLOAT, GL_TRUE, 5*sizeof(GLfloat), 
 				(const GLvoid *)(3*sizeof(GLfloat)));
 
-		glBindVertexArray(0);
+
+    glGenBuffers(1, &m->pvbo);
+    glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
+    handle = gl_shader_attrib(m->program, "pos");
+    glEnableVertexAttribArray(handle);
+    glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+    glVertexAttribDivisor(handle, 1);
+
+    handle = gl_shader_attrib(m->program, "scale");
+    glEnableVertexAttribArray(handle);
+    glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 0, (void *)(RENDER_BUFFER_SIZE * sizeof(vec3)));
+    glVertexAttribDivisor(handle, 1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 	}
 	rc = sqlite3_step(bdb->qmesh);
 	if (rc != SQLITE_DONE) {
