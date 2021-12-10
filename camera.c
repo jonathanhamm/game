@@ -13,7 +13,7 @@ int camera_init(Camera *camera) {
   camera->vertical_angle = 0.0;
   camera->field_of_view = 50.0;
   camera->near_plane = 0.01f;
-  camera->far_plane = 500.0;
+  camera->far_plane = 2000.0f;
   camera->viewport_aspect_ratio = 4.0f/3.0f;
   camera->gdegrees_rotated = 0.0;
   return STATUS_OK;

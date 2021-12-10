@@ -74,7 +74,7 @@ void bob_start(void) {
 	glDepthFunc(GL_LESS);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL );
 
 	bob_db_s *bdb = bob_loaddb("level/test.db");
 
@@ -93,7 +93,6 @@ void bob_start(void) {
 	else {
 		log_debug("no glerrors");
 	}
-
 
 	while (!glfwWindowShouldClose(window)) {
 		double currTime = glfwGetTime();
@@ -116,7 +115,6 @@ void bob_start(void) {
 
     if (!debounce)
       log_debug("dt: %f", 1/dt);
-
 
 		update(window, &level.camera, dt);
 		phys_compute_force(&level);
