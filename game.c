@@ -94,6 +94,7 @@ void bob_start(void) {
 		log_debug("no glerrors");
 	}
 
+
 	while (!glfwWindowShouldClose(window)) {
 		double currTime = glfwGetTime();
 		float dt = currTime - level.t0;
@@ -114,7 +115,7 @@ void bob_start(void) {
 		} 
 
     if (!debounce)
-      log_debug("dt: %f", dt*100);
+      log_debug("dt: %f", 1/dt);
 
 
 		update(window, &level.camera, dt);

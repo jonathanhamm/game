@@ -53,6 +53,7 @@ float lazy_epxression_compute(Range *range, char *src) {
 	lztok_list_s toklist = lex(nsrc);
 	float result = parse(toklist, range);
 	lz_toklist_free(&toklist); 
+  free(nsrc);
 	return result;
 }
 
