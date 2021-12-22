@@ -155,7 +155,7 @@ void lz_toklist_free(lztok_list_s *list) {
 
 char *dupstr(char *str) {
 	size_t len = strlen(str);
-	char *nstr = malloc(len);
+	char *nstr = malloc(len + 1);
 	if (!nstr) {
 		log_error("memory allocation error during string duplication");
 		//trap

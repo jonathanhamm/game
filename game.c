@@ -44,6 +44,7 @@ void bob_start(void) {
 
 	static int debounce = 0;
 
+
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
 		exit(EXIT_FAILURE);
@@ -375,6 +376,8 @@ Instance *spawn_instance(Level *level) {
 	pointer_vector_add(&level->gravityObjects, inst);
 	return inst;
 }
+
+int bob = 0;
 
 void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale) {
   RenderBuffer *rb = &level->renderBuffer;
