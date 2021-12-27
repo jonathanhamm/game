@@ -394,3 +394,15 @@ CharBuf pad_quotes(const char *src) {
   return cbuf;
 }
 
+char *bob_dup_str(const char *src) {
+  size_t len = strlen(src);
+  char *dupstr = malloc(len + 1);
+  if (!dupstr) {
+    perror("failed to allocate memory");
+    return NULL;
+  }
+  strcpy(dupstr, src);
+  return dupstr;
+}
+
+

@@ -95,5 +95,7 @@ extern void *bob_int_map_free(IntMap *m);
 
 extern CharBuf pad_quotes(const char *src);
 
+extern char *bob_dup_str(const char *src);
+
 #endif
 

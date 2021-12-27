@@ -37,7 +37,6 @@ struct lztok_list_s {
 static void lz_add_tok(lztok_list_s *list, char *lexeme, lztok_type_e type);
 static void lz_toklist_free(lztok_list_s *list);
 static lztok_list_s lex(char *src);
-static char *dupstr(char *str);
 
 static float parse(lztok_list_s toklist, Range *range);
 
@@ -49,7 +48,7 @@ static float p_factor(lztok_s **t, Range *range);
 static int lookup_iterator_value(const char var, Range *range);
 
 float lazy_epxression_compute(Range *range, char *src) {
-	char *nsrc = dupstr(src);
+	char *nsrc = bob_dup_str(src);
 	lztok_list_s toklist = lex(nsrc);
 	float result = parse(toklist, range);
 	lz_toklist_free(&toklist); 
@@ -151,18 +150,6 @@ void lz_toklist_free(lztok_list_s *list) {
 		t = t->next;
 		free(bck);
 	}
-}
-
-char *dupstr(char *str) {
-	size_t len = strlen(str);
-	char *nstr = malloc(len + 1);
-	if (!nstr) {
-		log_error("memory allocation error during string duplication");
-		//trap
-		return NULL;
-	}
-	strcpy(nstr, str);
-	return nstr;
 }
 
 float parse(lztok_list_s toklist, Range *range) {

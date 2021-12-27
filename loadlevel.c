@@ -92,7 +92,6 @@ static void range_add_node(RangeRoot *rangeRoot, PointerVector *path);
 
 /** misc **/
 static GLenum to_gl_shader(bob_shader_e shader_type);
-static char *sqlite3_strdup(const unsigned char *sqlstr);
 
 
 bob_db_s *bob_loaddb(const char *path) {
@@ -432,12 +431,12 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 				return -1;
 			}
       li->id = id;
-			li->px = sqlite3_strdup(vx);
-			li->py = sqlite3_strdup(vy);
-			li->pz = sqlite3_strdup(vz);
-			li->scalex = sqlite3_strdup(scalex);
-			li->scaley = sqlite3_strdup(scaley);
-			li->scalez = sqlite3_strdup(scalez);
+			li->px = bob_dup_str((const char *)vx);
+			li->py = bob_dup_str((const char *)vy);
+			li->pz = bob_dup_str((const char *)vz);
+			li->scalex = bob_dup_str((const char *)scalex);
+			li->scaley = bob_dup_str((const char *)scaley);
+			li->scalez = bob_dup_str((const char *)scalez);
 			li->mass = mass;
 			li->isSubjectToGravity = isSubjectToGravity;
 			li->isStatic = isStatic;
@@ -873,16 +872,5 @@ GLenum to_gl_shader(bob_shader_e shader_type) {
 			break;
 	}
 	return -1;
-}
-
-static char *sqlite3_strdup(const unsigned char *sqlstr) {
-	size_t len = strlen((const char *)sqlstr);
-	char *dupstr = malloc(len);
-	if (!dupstr) {
-		log_error("error allocating memory for read sqlite database text field.");
-		return NULL;
-	}
-	strcpy(dupstr, (const char*)sqlstr);
-	return dupstr;
 }
 

@@ -377,8 +377,6 @@ Instance *spawn_instance(Level *level) {
 	return inst;
 }
 
-int bob = 0;
-
 void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale) {
   RenderBuffer *rb = &level->renderBuffer;
 
@@ -391,7 +389,6 @@ void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale) {
     glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(rb->buffer), &rb->buffer[0], GL_DYNAMIC_COPY);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
     glDrawArraysInstanced(m->drawType, m->drawStart, m->drawCount, RENDER_BUFFER_SIZE);
     rb->pos = 0;
   }
