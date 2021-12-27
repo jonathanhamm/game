@@ -140,7 +140,7 @@ void log_error_errno(const char *format, ...) {
 
 	if(log_file) {
 		va_start(args, format);
-		log_format_errno(format, "ERROR", &args);
+		log_format_errno(format, "ERROR", args);
 		va_end(args);
 	}
 }
@@ -150,7 +150,7 @@ void log_error_explicit(int err, const char *format, ...) {
 
 	if(log_file) {
 		va_start(args, format);
-		log_format_explicit(err, format, "ERROR", &args);
+		log_format_explicit(err, format, "ERROR", args);
 		va_end(args);
 	}
 }

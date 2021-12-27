@@ -599,14 +599,14 @@ int bob_dbload_program(bob_db_s *bdb, Model *m, int programID) {
 		if (rc == SQLITE_ROW) {
 			name = sqlite3_column_text(bdb->qshader, 0);
 			bob_type = sqlite3_column_int(bdb->qshader, 1);
-			src = sqlite3_column_text(bdb->qshader, 2);
+			src = (GLchar *)sqlite3_column_text(bdb->qshader, 2);
 			gl_type = to_gl_shader(bob_type);
 			shader = malloc(sizeof *shader);
       if (!shader) {
         log_error("failed to allocate memory for shader");
         exit(1);
       }
-			rc = gl_load_shader(shader, gl_type, src, name);
+			rc = gl_load_shader(shader, gl_type, src, (const char *)name);
 			if (rc != STATUS_OK) {
 				log_error("failed to load shader: %s.", name);
 				return -1;
@@ -649,7 +649,7 @@ int bob_dbload_texture(bob_db_s *bdb, Model *m, int textureID) {
 		if (!texture) {
 			log_error("memory allocation error");
 		}
-		gl_load_texture(texture, path);
+		gl_load_texture(texture, (const char *)path);
 		m->texture = texture;
 	}
 	else {
@@ -718,7 +718,7 @@ int bob_parse_vertices(FloatBuf *fbuf, const unsigned char *vertext) {
 						}
 					}
 					*bptr = '\0';
-					num = atof(buf);
+					num = atof((const char*)buf);
 					float_add_f(fbuf, num);
 					bptr = buf;
 				}

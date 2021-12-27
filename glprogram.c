@@ -149,16 +149,6 @@ int gl_load_shader_from_file(GlShader *shader, GLenum shader_type, const char *f
 	return result;
 }
 
-int gl_load_shaders(const char *directory) {
-	GlShader shader; 
-	GlTexture texture;
-	print_png_version();
-	const char *test = "shaders/test.vsh";
-	gl_load_shader_from_file(&shader, GL_VERTEX_SHADER, test, test);
-
-	gl_load_texture(&texture, "textures/pge_icon.png");
-}
-
 void gl_delete_shader(GlShader *shader) {
 	glDeleteShader(shader->handle);
 }
@@ -166,10 +156,11 @@ void gl_delete_shader(GlShader *shader) {
 void print_png_version(void) {
 	log_info("Compiled with libpng %s; using libpng %s", PNG_LIBPNG_VER_STRING, png_libpng_ver);
 	//log_info("Compiled with zlib %s; using zlib %s.", ZLIB_VERSION, zlib_version);
-};
+}
 
 int gl_load_texture(GlTexture *texture, const char *file_path) {
-	int result, handle;
+	int result;
+  GLuint handle;
 
 	result = load_png(&texture->png, file_path);
 	if (result) {
@@ -296,7 +287,7 @@ int load_png(Png *png, const char *file_path) {
 void gl_delete_texture(GlTexture *texture) {
 	glDeleteTextures(1, &texture->handle);
 	free(texture->png.data);
-};
+}
 
 GLenum gl_map_color_type(png_byte color_type) {
 	switch(color_type) {

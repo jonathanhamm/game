@@ -42,7 +42,6 @@ extern GLint gl_shader_attrib(GlProgram *program, const GLchar *attrib_name);
 
 extern int gl_load_shader(GlShader *shader, GLenum shader_type, const char *src, const char *name);
 extern int gl_load_shader_from_file(GlShader *shader, GLenum shader_type, const char *file_path, const char *name);
-extern int gl_load_shaders(const char *directory);
 extern void gl_delete_shader(GlShader *shader);
 
 extern int gl_load_texture(GlTexture *texture, const char *file_path);

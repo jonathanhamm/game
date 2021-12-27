@@ -8,12 +8,10 @@
 
 #define LZTOK_LEX_LEN 64
 
-typedef enum lztok_type_e lztok_type_e;
-
 typedef struct lztok_s lztok_s;
 typedef struct lztok_list_s lztok_list_s;
 
-enum lztok_type_e {
+typedef enum  {
 	LZTYPE_NUM,
 	LZTYPE_IDENT,
 	LZTYPE_ADDOP,
@@ -21,7 +19,7 @@ enum lztok_type_e {
 	LZTYPE_LPAREN,
 	LZTYPE_RPAREN,
 	LZTYPE_EOF
-};
+} lztok_type_e;
 
 struct lztok_s {
 	lztok_type_e type;
