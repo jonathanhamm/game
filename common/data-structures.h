@@ -78,6 +78,7 @@ extern void float_buf_free(FloatBuf *b);
 
 extern int pointer_vector_init(PointerVector *pv);
 extern int pointer_vector_add(PointerVector *pv, void *p);
+extern int pointer_vector_add_if_not_exists(PointerVector *pv, void *p);
 extern void pointer_vector_free(PointerVector *pv);
 
 extern void bob_str_map_init(StrMap *m);
@@ -93,6 +94,8 @@ extern void *bob_int_map_get(IntMap *m, int key);
 extern void *bob_int_map_free(IntMap *m);
 
 extern CharBuf pad_quotes(const char *src);
+
+extern char *bob_dup_str(const char *src);
 
 #endif
 

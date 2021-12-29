@@ -61,19 +61,34 @@ CREATE TABLE instance (
 	FOREIGN KEY(levelID) REFERENCES level (id)
 );
 
-CREATE TABLE instance_plane (
-  modelID INTEGER,
-  levelID INTEGER,
-  px FLOAT,
-  py FLOAT,
-  pz FLOAT,
-  vx FLOAT,
-  vy FLOAT,
-  vz FLOAT,
-  n1 INTEGER,
-  n2 INTEGER,
-  FOREIGN KEY(modelID) REFERENCES model (id),
-	FOREIGN KEY(levelID) REFERENCES level (id)
+CREATE TABLE lazy_instance (
+	id INTEGER,
+	modelID INTEGER,
+  rangeID INTEGER,
+	vx VARCHAR(64),
+	vy VARCHAR(64),
+	vz VARCHAR(64),
+  scalex VARCHAR(64),
+  scaley VARCHAR(64),
+  scalez VARCHAR(64),
+	mass VARCHAR(64),
+  isSubjectToGravity TINYINT,
+  isStatic TINYINT,
+	PRIMARY KEY(id),
+	FOREIGN KEY(modelID) REFERENCES model (id),
+  FOREIGN KEY(rangeID) REFERENCES range (id)
+);
+
+CREATE TABLE range (
+	id INTEGER,
+	levelID INTEGER,
+  steps INTEGER,
+  var VARCHAR(1),
+  cache TINYINT,
+  child INTEGER,
+  FOREIGN KEY(child) REFERENCES range(id),
+	FOREIGN KEY(levelID) REFERENCES level (id),
+	PRIMARY KEY(id)
 );
 
 CREATE TABLE level (

@@ -206,9 +206,19 @@ int pointer_vector_add(PointerVector *vp, void *p) {
 	return STATUS_OK;
 }
 
+int pointer_vector_add_if_not_exists(PointerVector *pv, void *p) {
+	size_t i, size = pv->size;
+
+	for (i = 0; i < size; i++) {
+		if (pv->buffer[i] == p)
+			return STATUS_OK;
+	}
+	return pointer_vector_add(pv, p);
+}
+
 void pointer_vector_free(PointerVector *vp) {
-	free(vp->buffer);
-	vp->buffer = NULL;
+  free(vp->buffer);
+  vp->buffer = NULL;
 }
 
 void bob_str_map_init(StrMap *m) {
@@ -383,4 +393,16 @@ CharBuf pad_quotes(const char *src) {
   char_add_c(&cbuf, '\0');
   return cbuf;
 }
+
+char *bob_dup_str(const char *src) {
+  size_t len = strlen(src);
+  char *dupstr = malloc(len + 1);
+  if (!dupstr) {
+    perror("failed to allocate memory");
+    return NULL;
+  }
+  strcpy(dupstr, src);
+  return dupstr;
+}
+
 

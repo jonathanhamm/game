@@ -212,6 +212,7 @@
     ]
   }
   Texture texture := {
+    //"path": "textures/basic1.png"
     "path": "textures/pge_icon.png"
   }
 
@@ -225,6 +226,8 @@
 
         in vec3 vert;
         in vec2 vertexCoord;
+				in vec3 pos;
+				in vec3 scale;
 
         out vec2 fragTexCoord;
 
@@ -255,9 +258,81 @@
           out vec4 finalColor;
 
           void main() {
-              //finalColor = texture(tex, fragTexCoord);
+              finalColor = texture(tex, fragTexCoord);
               //finalColor =  texture(tex, fragTexCoord) * vec4(0.5, 0.5, 1.0, 1.0);
-              finalColor = vec4(fragTexCoord, 0, 1) * vec4(0.5, 0.5, 1.0, 1.0);
+              //finalColor = vec4(fragTexCoord, 0, 1) * vec4(0.5, 0.5, 1.0, 1.0);
+          }
+        "
+    }
+    /*
+    "compute": {
+      "src": "test1" 
+    }*/
+  }
+  Program program2 := {
+    "vertex": {
+      "src":
+        "#version 400
+
+        uniform mat4 camera;
+
+				in vec3 pos;
+				in vec3 scale;
+
+        in vec3 vert;
+        in vec2 vertexCoord;
+
+        out vec2 fragTexCoord;
+
+
+				mat4 toTranslate(vec3 pos){
+						return mat4(
+								vec4(1.0, 0.0, 0.0, 0.0),
+								vec4(0.0, 1.0, 0.0, 0.0),
+								vec4(0.0, 0.0, 1.0, 0.0),
+								vec4(pos, 1.0)
+						);
+				}
+
+				mat4 toScale(vec3 scale){
+						return mat4(
+								vec4(scale.x, 0.0, 0.0, 0.0),
+								vec4(0.0, scale.y, 0.0, 0.0),
+								vec4(0.0, 0.0, scale.z, 0.0),
+								vec4(0.0, 0.0, 0.0, 1.0)
+						);
+				}
+
+        void main() {
+						mat4 model =  toTranslate(pos) * toScale(scale);
+            fragTexCoord = vertexCoord;
+            gl_Position = camera * model * vec4(vert, 1);
+        }
+      " 
+    },
+    /* "tessellation": {
+      "src": "test1" 
+    },
+    "evaluation": {
+      "src": "test1" 
+    },
+    "geometry": {
+      "src": "test1" 
+    },*/
+    "fragment": {
+      "src":
+        "#version 400
+
+          uniform sampler2D tex;
+
+          in vec2 fragTexCoord;
+
+          out vec4 finalColor;
+
+          void main() {
+              finalColor = texture(tex, fragTexCoord);
+              //finalColor =  texture(tex, fragTexCoord) * vec4(0.5, 0.5, 1.0, 1.0);
+              //finalColor = vec4(fragTexCoord, 0, 1) * vec4(0.5, 0.5, 1.0, 1.0);
           }
         "
     }
@@ -268,33 +343,52 @@
   }
 	Model m1 := {
 		"mesh": mesh1,
-    "program": program1,
+    "program": program2,
     "hasUV": 1,
     "texture": texture
 	}
   Model m2 := {
     "mesh": cone,
-    "program": program1,
+    "program": program2,
     "hasUv": 1,
     "texture": texture
   }
+	Model m3 := {
+		"mesh": mesh1,
+		"program": program2,
+		"hasUV": 1,
+		"texture": texture
+	}
 
+	Int tunnelLength := 100
+	Int tunnelWidth := 35
 	Level turd := {
 		"name": derp,
     "ambientGravity": [0, 0, -9.81],
-    /* "instancePlanes": [
-      { 
-        "model": m1, 
-        "px": 3, 
-        "py": 3, 
-        "pz": 3, 
-        "vx": 20, 
-        "vy": 20, 
-        "vz": 20, 
-        "n1": 10,
-        "n2": 30
-      }
-    ], */
+		"ranges": [{
+			"steps": tunnelLength,
+			"var": "x",
+			"cache": 0,
+			"child": {
+				"steps": tunnelWidth,
+				"var": "y",
+				"cache": 1,
+				"instances": [
+					{"x": "30*x", "y": "y", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m3},
+					{"x": "30*x", "y": "y", "z": tunnelWidth, "scalex": 10, "mass": 1.0, "model": m3},
+					{"x": "30*x", "y": "0", "z": "y", "mass": 1.0, "scalex": 10, "model": m3},
+					{"x": "30*x", "y": tunnelWidth, "z": "y", "scalex": 10, "mass": 1.0, "model": m3},
+					/*****/
+					{"x": "0", "y": "30*x", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m3},
+					{"x": tunnelWidth, "y": "30*x", "z": tunnelWidth, "scalex": 10, "mass": 1.0, "model": m3},
+					{"x": "y", "y": "30*x", "z": "y", "mass": 1.0, "scalex": 10, "model": m3},
+					{"x": "y", "y": "30*x", "z": "y", "scalex": 10, "mass": 1.0, "model": m3}
+				]
+			},
+			"instances": [
+					{"x": "9", "y": "9", "z": "9", "mass": 1.0, "model": m3}
+			]
+		}],
 		"instances": [
 			/* { "x": 1.0, "y": 1.0, "z": 0.0, "mass": 1.0, "model": m1, "scalex": 0.01, "isSubjectToGravity": 1, "isStatic": 1},
 			{ "x": 1.0, "y": 1.0, "z": 1.0+3*4-2, "mass": 1.0, "model": m1, "scalex": 1.0, "isSubjectToGravity": 1, "isStatic": 0},
@@ -333,8 +427,8 @@
 			{ "x": 5.0, "y": 0.0, "z": 2, "mass": 1.0, "model": m1 , "scaley": 0.1},
 			{ "x": -5.0, "y": 0.0, "z": 0, "mass": 1.0, "model": m1 , "isSubjectToGravity": 1, "isStatic": 0}, */
 
-			{ "x": 0.0, "y": 0.0, "z": 0, "mass": 9E+13, "model": m1, "scalex": 2, "scaley": 2, "isSubjectToGravity": 1, "isStatic": 1}
-			/*{ "x": 0.0, "y": 0.0, "z": 0, "mass": 1.1E13, "model": m1, "scalex": 2, "scaley": 1},
+			{ "x": 0.0, "y": 0.0, "z": 0, "mass": 9E+13, "model": m1, "scalex": 2, "scaley": 2, "isSubjectToGravity": 1, "isStatic": 1},
+			{ "x": 0.0, "y": 0.0, "z": 0, "mass": 1.1E13, "model": m1, "scalex": 2, "scaley": 1} /*
 			{ "x": 0.0, "y": 0.0, "z": 0, "mass": 1.1E13, "model": m1, "scalex": 2, "scaley": 2},
 			{ "x": 0.0, "y": 0.0, "z": 0, "mass": 1.1E13, "model": m1, "scalex": 2, "scaley": 1},
 			{ "x": 0.0, "y": 0.0, "z": 0, "mass": 1.1E13, "model": m1},

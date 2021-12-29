@@ -5,4 +5,7 @@
 .Rhistory
 game
 level/level
+*.gc*
+*.gcov
+gmon.out
 

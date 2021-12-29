@@ -14,7 +14,7 @@ PointerVector get_basic_shaders1(void) {
 
 	result = gl_load_shader_from_file(vertex_shader, GL_VERTEX_SHADER, "shaders/vertex.vsh", "test1");
 	result = gl_load_shader_from_file(fragment_shader, GL_FRAGMENT_SHADER, "shaders/fragment.fsh", "test2");
-	
+
 	pointer_vector_init(&pv);
 	pointer_vector_add(&pv, fragment_shader);
 	pointer_vector_add(&pv, vertex_shader);
@@ -126,4 +126,27 @@ void instance_get_matrix(Instance *i, mat4 m4) {
 	glm_translate(m4, i->pos);
 	glm_scale(m4, i->scale);
 }
+
+void instance_group_add(PointerVector *igs, Model *m, void *ptr) {
+  int i;
+
+  for (i = 0; i < igs->size; i++) {
+    InstanceGroup *ig = igs->buffer[i];
+    if (ig->model == m) {
+      pointer_vector_add(&ig->instances, ptr);
+      return;
+    }
+  }
+  InstanceGroup *ig = malloc(sizeof *ig);
+  if (!ig) {
+    log_error("Failed to allocate memory for new instance group");
+    return;
+  }
+  ig->model = m;
+  pointer_vector_init(&ig->instances);
+  pointer_vector_add(&ig->instances, ptr);
+  log_debug("adding instance group %p with model %p", ig, m);
+  pointer_vector_add(igs, ig);
+}
+
 
