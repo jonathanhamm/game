@@ -416,6 +416,7 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
       id = sqlite3_column_int(bdb->qlazyinstance, 0);
 			modelID = sqlite3_column_int(bdb->qlazyinstance, 1);
 			vx = sqlite3_column_text(bdb->qlazyinstance, 2);
+      log_info("vx: %s", vx);
 			vy = sqlite3_column_text(bdb->qlazyinstance, 3);
 			vz = sqlite3_column_text(bdb->qlazyinstance, 4);
 			scalex = sqlite3_column_text(bdb->qlazyinstance, 5);
@@ -477,8 +478,8 @@ Model *bob_dbload_model(bob_db_s *bdb, int modelID) {
 		return NULL;
 	}
 
-	//m->drawType = GL_TRIANGLE_STRIP;
-	m->drawType = GL_LINE_LOOP;
+	m->drawType = GL_TRIANGLE_STRIP;
+	//m->drawType = GL_LINE_LOOP;
 	m->drawStart = 0;
 	m->drawCount = 6*2*3;
 	log_debug("loading model %d", modelID);

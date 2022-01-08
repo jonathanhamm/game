@@ -1092,17 +1092,21 @@ bool exec_add(tnode_s *accum, tnode_s *operand) {
   else if (accum->type == PTYPE_STRING) {
     if (operand->type == PTYPE_FLOAT) {
       char *nstr = concat_str_double(operand->val.s, accum->val.f);
+      //printf("concat string and float: %s %f\n", accum->val.s, operand->val.f);
       accum->val.s = nstr;
     }
     else if (operand->type == PTYPE_INT) {
       char *nstr = concat_str_integer(accum->val.s, operand->val.i);
+      //printf("concat string and integer: %s %d with result %s\n", accum->val.s, operand->val.i, nstr);
       accum->val.s = nstr;
     }
     else if (operand->type == PTYPE_STRING) {
       char *nstr = concat_str_str(accum->val.s, operand->val.s);
+      //printf("concat string and string: %s %s\n", accum->val.s, operand->val.s);
       accum->val.s = nstr;
     }
     else {
+      //printf("concat string and incompatible type: %s\n", accum->val.s);
       return false;
     }
   }
@@ -1256,20 +1260,24 @@ symtable_node_s *sym_lookup(p_context_s *context, char *key) {
  * -------------------------------------------------- 
  */
 char *concat_str_integer(char *str, int i) {
-  size_t n = strlen(str) + 8, realn;
+  char *realstr = strip_quotes(str);
+  size_t n = strlen(realstr) + 8, realn;
   char *nstr = malloc(n);
   if (!nstr) {
+    free(realstr);
     return NULL;
   }
-  realn = snprintf(nstr, n, "%s%d", str, i);
+  realn = snprintf(nstr, n, "\"%s%d\"", realstr, i);
   if (realn - 1 > n) {
     free(nstr);
     nstr = malloc(realn + 1);
     if (!nstr) {
+      free(realstr);
       return NULL;
     }
   }
-  sprintf(nstr, "%s%d", str, i);
+  sprintf(nstr, "\"%s%d\"", realstr, i);
+  free(realstr);
   return nstr;
 }
 
@@ -1278,20 +1286,24 @@ char *concat_str_integer(char *str, int i) {
  * -------------------------------------------------- 
  */
 char *concat_integer_str(int i, char *str) {
-  size_t n = strlen(str) + 8, realn;
+  char *realstr = strip_quotes(str);
+  size_t n = strlen(realstr) + 8, realn;
   char *nstr = malloc(n);
   if (!nstr) {
+    free(realstr);
     return NULL;
   }
-  realn = snprintf(nstr, n, "%d%s", i, str);
+  realn = snprintf(nstr, n, "\"%d%s\"", i, realstr);
   if (realn - 1 > n) {
     free(nstr);
     nstr = malloc(realn + 1);
     if (!nstr) {
+      free(realstr);
       return NULL;
     }
-    sprintf(nstr, "%s%d", str, i);
+    sprintf(nstr, "\"%s%d\"", realstr, i);
   }
+  free(realstr);
   return nstr;
 }
 
@@ -1300,20 +1312,24 @@ char *concat_integer_str(int i, char *str) {
  * -------------------------------------------------- 
  */
 char *concat_str_double(char *str, double d) {
-  size_t n = strlen(str) + 8, realn;
+  char *realstr = strip_quotes(str);
+  size_t n = strlen(realstr) + 8, realn;
   char *nstr = malloc(n);
   if (!nstr) {
+    free(realstr);
     return NULL;
   }
-  realn = snprintf(nstr, n, "%s%f", str, d);
+  realn = snprintf(nstr, n, "\"%s%f\"", realstr, d);
   if (realn - 1 > n) {
     free(nstr);
     nstr = malloc(realn + 1);
     if (!nstr) {
+      free(realstr);
       return NULL;
     }
   }
-  sprintf(nstr, "%s%f", str, d);
+  sprintf(nstr, "\"%s%f\"", realstr, d);
+  free(realstr);
   return nstr;
 }
 
@@ -1322,20 +1338,24 @@ char *concat_str_double(char *str, double d) {
  * -------------------------------------------------- 
  */
 char *concat_double_str(double d, char *str) {
-  size_t n = strlen(str) + 8, realn;
+  char *realstr = strip_quotes(str);
+  size_t n = strlen(realstr) + 8, realn;
   char *nstr = malloc(n);
   if (!nstr) {
+    free(realstr);
     return NULL;
   }
-  realn = snprintf(nstr, n, "%f%s", d, str);
+  realn = snprintf(nstr, n, "\"%f%s\"", d, realstr);
   if (realn - 1 > n) {
     free(nstr);
     nstr = malloc(realn + 1);
     if (!nstr) {
+      free(realstr);
       return NULL;
     }
-    sprintf(nstr, "%f%s", d, str);
+    sprintf(nstr, "\"%f%s\"", d, realstr);
   }
+  free(realstr);
   return nstr;
 }
 
@@ -1344,12 +1364,16 @@ char *concat_double_str(double d, char *str) {
  * -------------------------------------------------- 
  */
 char *concat_str_str(char *str1, char *str2) {
-  size_t n = strlen(str1) + strlen(str2) + 1;
+  char *realstr1 = strip_quotes(str1);
+  char *realstr2 = strip_quotes(str2);
+  size_t n = strlen(realstr1) + strlen(realstr2) + 3;
   char *nstr = malloc(n);
   if (!nstr) {
     return NULL;
   }
-  sprintf("%s%s", str1, str2);
+  sprintf(nstr, "\"%s%s\"", realstr1, realstr2);
+  free(realstr1);
+  free(realstr2);
   return nstr;
 }
 
@@ -2327,6 +2351,7 @@ CharBuf val_to_str(tnode_s *val) {
   }
   else {
     fprintf(stderr, "Unexpected type %d to convert to string.\n", val->type);
+    exit(EXIT_FAILURE);
   }
   return buf;
 }
