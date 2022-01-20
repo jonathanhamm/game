@@ -128,6 +128,8 @@ static char *strip_quotes(char *level_name);
 static CharBuf get_obj_value_default(StrMap *obj, const char *key, const char *def);
 static void report_syntax_error(const char *message, p_context_s *context);
 static void report_semantics_error(const char *message, p_context_s *context);
+static void tnode_print(tnode_s *tnode);
+
 
 /* 
  * function:	parse	
@@ -311,6 +313,9 @@ tnode_s *parse_declaration(p_context_s *context) {
       symnode->node = NULL;
       symnode->node = tnode_create_x();
       bob_str_map_insert(&context->symtable, ident, symnode);
+
+      printf("added to symtable %s with lex\n", ident);
+
       parse_next_tok(context);
       parse_opt_assign(context, symnode);
       if (symnode->evalflag) {
@@ -322,8 +327,8 @@ tnode_s *parse_declaration(p_context_s *context) {
           emit_level(context, symnode->node);				
         }
         else {
-          //printf("typenode type: %d\n", typenode->type);
         }
+        tnode_print(symnode->node);
       }
     }
     else {
@@ -594,6 +599,8 @@ tnode_s *parse_factor(p_context_s *context) {
       if (!symnode->evalflag) {
         report_semantics_error("Use of unitialized identifier", context);
       }
+      printf("looking up identifier: %s and got: %s\n", context->currtok->lexeme, symnode->node->tok->lexeme);
+      tnode_print(symnode->node);
       factor = symnode->node;
       parse_next_tok(context);
       parse_idsuffix(context, &factor);
@@ -889,11 +896,13 @@ p_nodetype_e resolve_array_type(tnode_list_s list) {
     p_nodetype_e type_i = list.list[i]->type;
     switch (type) {
       case PTYPE_INT:
-        if (type_i != PTYPE_INT)
-          if (type_i == PTYPE_FLOAT)
+        if (type_i != PTYPE_INT) {
+          if (type_i == PTYPE_FLOAT) {
             return PTYPE_FLOAT;
-          else
+          } else {
             return PTYPE_ANY;
+          }
+        }
         break;
       case PTYPE_FLOAT:
         if (type_i != PTYPE_FLOAT && type_i != PTYPE_INT)
@@ -1092,21 +1101,17 @@ bool exec_add(tnode_s *accum, tnode_s *operand) {
   else if (accum->type == PTYPE_STRING) {
     if (operand->type == PTYPE_FLOAT) {
       char *nstr = concat_str_double(operand->val.s, accum->val.f);
-      //printf("concat string and float: %s %f\n", accum->val.s, operand->val.f);
       accum->val.s = nstr;
     }
     else if (operand->type == PTYPE_INT) {
       char *nstr = concat_str_integer(accum->val.s, operand->val.i);
-      //printf("concat string and integer: %s %d with result %s\n", accum->val.s, operand->val.i, nstr);
       accum->val.s = nstr;
     }
     else if (operand->type == PTYPE_STRING) {
       char *nstr = concat_str_str(accum->val.s, operand->val.s);
-      //printf("concat string and string: %s %s\n", accum->val.s, operand->val.s);
       accum->val.s = nstr;
     }
     else {
-      //printf("concat string and incompatible type: %s\n", accum->val.s);
       return false;
     }
   }
@@ -1879,7 +1884,6 @@ bool emit_shader(tnode_s *shader, bob_shader_e type, p_context_s *context) {
   char_buf_init(&typebuf);
   char_add_i(&typebuf, type);
   
-
   srcbuf = pad_quotes(src_stripped);
 
   emit_code("--------------------------------------------------------------------------------\n", &context->shadercode);
@@ -1948,6 +1952,7 @@ bool emit_instance_data(p_context_s *context, tnode_s *level, char *levelid) {
     report_semantics_error("Level must at least have an instances or instancePlanes array", context);
     return false;
   }
+  return true;
 }
 
 bool emit_instances(p_context_s *context, char *levelid, tnode_s *instances) {
@@ -2079,6 +2084,7 @@ bool emit_instance(p_context_s *context, char *levelid, tnode_s *instance) {
   char_buf_free(&massbuf);
   char_buf_free(&isSubjectToGravitybuf);
   char_buf_free(&isStaticbuf);
+  return true;
 }
 
 bool emit_range_data(p_context_s *context, tnode_s *level, char *levelid) {
@@ -2200,11 +2206,14 @@ bool emit_lazy_instances(p_context_s *context, char *rangeid, tnode_s *lazy_inst
     } 
     else {
       report_semantics_error("Lazy Instances must be an array of objects or lazy instance types", context);
+      return false;
     }
   } 
   else {
-      report_semantics_error("Lazy Instances must be an array of objects or lazy instance types", context);
+    report_semantics_error("Lazy Instances must be an array of objects or lazy instance types", context);
+    return false;
   }
+  return true;
 }
 
 void emit_lazy_instance_batch(p_context_s *context, char *rangeid, tnode_list_s lazy_instances) {
@@ -2312,6 +2321,7 @@ bool emit_lazy_instance(p_context_s *context, char *rangeid, tnode_s *lazy_insta
   char_buf_free(&massbuf);
   char_buf_free(&isSubjectToGravitybuf);
   char_buf_free(&isStaticbuf);
+  return true;
 }
 
 bool check_shader(tnode_s *program, p_context_s *context, const char *shader_key, const char *programname, bob_shader_e type) {
@@ -2334,6 +2344,7 @@ bool check_shader(tnode_s *program, p_context_s *context, const char *shader_key
     emit_code(programname, &context->programcode);
     emit_code(")\n );\n", &context->programcode);
   }
+  return true;
 }
 
 CharBuf val_to_str(tnode_s *val) {
@@ -2460,6 +2471,23 @@ void report_semantics_error(const char *message, p_context_s *context) {
   tok_s *t = context->currtok;
   context->parse_errors++;
   fprintf(stderr, "Error at line %u, token '%s': %s\n", t->lineno, t->lexeme, message);
+}
+
+void tnode_print(tnode_s *tnode) {
+  switch (tnode->type) {
+    case PTYPE_INT:
+      printf("tnode int: %d\n", tnode->val.i);
+      break;
+    case PTYPE_FLOAT:
+      printf("tnode float: %f\n", tnode->val.f);
+      break;
+    case PTYPE_STRING:
+      printf("tnode string: %s\n", tnode->val.s);
+      break;
+    default:
+      printf("tnode - unknown type %d: %s\n", tnode->type, tnode->tok->lexeme);
+      break;
+  }
 }
 
 

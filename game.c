@@ -10,6 +10,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -289,8 +290,6 @@ void render_lazy_instance(Level *level, LazyInstance *li, Range *range, mat4 cma
 	float posy = lazy_epxression_compute(range, li->py);
 	float posz = lazy_epxression_compute(range, li->pz);
 
-  //log_info("posx posy posz: %s %s %s -> %f %f %f", li->px, li->py, li->pz, posx, posy, posz);
-
 	instance.pos[0] = posx;
 	instance.pos[1] = posy;
 	instance.pos[2] = posz;
@@ -299,8 +298,6 @@ void render_lazy_instance(Level *level, LazyInstance *li, Range *range, mat4 cma
   float scalex = lazy_epxression_compute(range, li->scalex);
 	float scaley = lazy_epxression_compute(range, li->scaley);
 	float scalez = lazy_epxression_compute(range, li->scalez);
-
-  //log_info("values: %f %f %f", scalex, scaley, scalez);
 
 	instance.scale[0] = scalex;
 	instance.scale[1] = scaley;
@@ -391,55 +388,22 @@ void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale) {
 
   rb->pos++;
 
-  log_info("rendering pos %f %f %f", pos[0], pos[1], pos[2]);
-
   if (rb->pos == RENDER_BUFFER_SIZE ) {
-    log_info("flushing buffer");
     glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(rb->buffer), &rb->buffer[0], GL_DYNAMIC_COPY);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glDrawArraysInstanced(m->drawType, m->drawStart, m->drawCount, RENDER_BUFFER_SIZE);
     rb->pos = 0;
   }
-
-  GLenum error = glGetError();
-  if (error != GL_NO_ERROR) {
-    log_error("in OpenGL Error: %d", error);
-    exit(1);
-  }
 }
 
 void buffered_render_finalize(Level *level, Model *m) {
   RenderBuffer *rb = &level->renderBuffer;
-
-
-
   glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
-
-  log_info("buffer size: %lu and portion %lu and %lu, and %d", 
-      sizeof(rb->buffer), sizeof(*rb->buffer)*rb->pos, sizeof(*rb->buffer), GL_ARRAY_BUFFER);
-
-  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(*rb->buffer)*rb->pos, &rb->buffer[0]);
-
-  GLenum error = glGetError();
-  if (error != GL_NO_ERROR) {
-    log_error("1 in final OpenGL Error: %d", error);
-    exit(1);
-  }
-
-  glBufferSubData(GL_ARRAY_BUFFER, sizeof(*rb->buffer)*RENDER_BUFFER_SIZE, sizeof(*rb->buffer)*rb->pos, 
-      &rb->buffer[RENDER_BUFFER_SIZE]);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(rb->buffer), &rb->buffer[0], GL_DYNAMIC_COPY);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glDrawArraysInstanced(m->drawType, m->drawStart, m->drawCount, rb->pos);
   rb->pos = 0;
-
-  log_info("finalize render");
-
-  error = glGetError();
-  if (error != GL_NO_ERROR) {
-    log_error("2 in final OpenGL Error: %d", error);
-    exit(1);
-  }
 }
 
 void error_callback(int error, const char* description)

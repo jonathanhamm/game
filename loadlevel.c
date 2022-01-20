@@ -416,7 +416,6 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
       id = sqlite3_column_int(bdb->qlazyinstance, 0);
 			modelID = sqlite3_column_int(bdb->qlazyinstance, 1);
 			vx = sqlite3_column_text(bdb->qlazyinstance, 2);
-      log_info("vx: %s", vx);
 			vy = sqlite3_column_text(bdb->qlazyinstance, 3);
 			vz = sqlite3_column_text(bdb->qlazyinstance, 4);
 			scalex = sqlite3_column_text(bdb->qlazyinstance, 5);
@@ -450,6 +449,7 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 			li->rotation[1] = 0;
 			li->rotation[2] = 0;
 
+      log_info("added %s", li->px);
       pointer_vector_add(&range->lazyinstances, li);
 		}
 		else if (rc == SQLITE_DONE) {

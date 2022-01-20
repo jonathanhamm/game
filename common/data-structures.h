@@ -91,7 +91,7 @@ extern void bob_int_map_init(IntMap *m);
 extern int bob_int_map_insert(IntMap *m, int key, void *val);
 extern int bob_int_map_update(IntMap *m, int key, void *val);
 extern void *bob_int_map_get(IntMap *m, int key);
-extern void *bob_int_map_free(IntMap *m);
+extern void bob_int_map_free(IntMap *m);
 
 extern CharBuf pad_quotes(const char *src);
 

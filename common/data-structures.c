@@ -355,7 +355,7 @@ void *bob_int_map_get(IntMap *m, int key) {
 	return NULL;
 }
 
-void *bob_int_map_free(IntMap *m) {
+void bob_int_map_free(IntMap *m) {
 	int i;
 	IntMapEntry *entry, *bck;
 
