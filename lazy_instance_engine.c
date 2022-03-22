@@ -7,7 +7,6 @@
 #include <stdbool.h>
 
 #define LZTOK_LEX_LEN 64
-
 typedef struct lztok_s lztok_s;
 typedef struct lztok_list_s lztok_list_s;
 

@@ -6,14 +6,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-typedef enum p_nodetype_e p_nodetype_e;
 typedef struct p_context_s p_context_s;
 typedef struct tnode_list_s tnode_list_s;
 typedef struct tnode_arraytype_val_s tnode_arraytype_val_s;
 typedef struct tnode_s tnode_s;
 typedef struct symtable_node_s symtable_node_s;
 
-enum p_nodetype_e {
+typedef enum {
 	PTYPE_INT,
 	PTYPE_FLOAT,
 	PTYPE_STRING,
@@ -46,7 +45,7 @@ enum p_nodetype_e {
 	PTPYE_INT_DEC,
 	PTYPE_ARRAY_DEC,
 	PTYPE_LEVEL_DEC
-};
+} p_nodetype_e;
 
 struct p_context_s {
 	int parse_errors;
@@ -95,8 +94,6 @@ struct symtable_node_s {
 
 extern p_context_s parse(toklist_s *list);
 extern void gen_code(p_context_s *context, FILE *dest);
-extern void print_parse_tree(p_context_s *context);
-extern void print_parse_subtree(tnode_s *root);
 
 #endif
 

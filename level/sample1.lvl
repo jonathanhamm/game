@@ -374,7 +374,7 @@
 				"var": "y",
 				"cache": 1,
 				"instances": [
-					{"x": "30*x", "y": "y", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m3},
+					{"x": "30*x + " + tunnelWidth, "y": "x", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m3},
 					{"x": "30*x", "y": "y", "z": tunnelWidth, "scalex": 10, "mass": 1.0, "model": m3},
 					{"x": "30*x", "y": "0", "z": "y", "mass": 1.0, "scalex": 10, "model": m3},
 					{"x": "30*x", "y": tunnelWidth, "z": "y", "scalex": 10, "mass": 1.0, "model": m3},

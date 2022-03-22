@@ -3,11 +3,10 @@
 
 #include "../common/data-structures.h"
 
-typedef enum toktype_e toktype_e;
 typedef struct tok_s tok_s;
 typedef struct toklist_s toklist_s;
 
-enum toktype_e {
+typedef enum {
 	TOK_NONE,
 	TOK_IDENTIFIER,
 	TOK_STRING,
@@ -41,7 +40,7 @@ enum toktype_e {
   TOK_RANGE_DEC,
   TOK_LAZY_INSTANCE_DEC,
 	TOK_EOF
-};
+} toktype_e;
 
 struct tok_s {
 	toktype_e type;

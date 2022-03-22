@@ -449,6 +449,7 @@ int bob_dbload_lazy_instances(Level *lvl, Range *range, bob_db_s *bdb,
 			li->rotation[1] = 0;
 			li->rotation[2] = 0;
 
+      log_info("added %s", li->px);
       pointer_vector_add(&range->lazyinstances, li);
 		}
 		else if (rc == SQLITE_DONE) {
@@ -477,8 +478,8 @@ Model *bob_dbload_model(bob_db_s *bdb, int modelID) {
 		return NULL;
 	}
 
-	//m->drawType = GL_TRIANGLE_STRIP;
-	m->drawType = GL_LINE_LOOP;
+	m->drawType = GL_TRIANGLE_STRIP;
+	//m->drawType = GL_LINE_LOOP;
 	m->drawStart = 0;
 	m->drawCount = 6*2*3;
 	log_debug("loading model %d", modelID);

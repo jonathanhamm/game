@@ -10,6 +10,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -237,7 +238,7 @@ void render_range_root(Level *level, RangeRoot *rangeRoot, Camera *camera) {
   glUseProgram(program);
 
   camera_handle = glGetUniformLocation(program, "camera");
-  //model_handle = glGetUniformLocation(program, "model");
+  model_handle = glGetUniformLocation(program, "model");
   tex_handle = glGetUniformLocation(program, "tex");
 
   glActiveTexture(GL_TEXTURE0);
@@ -293,9 +294,11 @@ void render_lazy_instance(Level *level, LazyInstance *li, Range *range, mat4 cma
 	instance.pos[1] = posy;
 	instance.pos[2] = posz;
 
+
   float scalex = lazy_epxression_compute(range, li->scalex);
 	float scaley = lazy_epxression_compute(range, li->scaley);
 	float scalez = lazy_epxression_compute(range, li->scalez);
+
 	instance.scale[0] = scalex;
 	instance.scale[1] = scaley;
 	instance.scale[2] = scalez;
@@ -397,9 +400,7 @@ void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale) {
 void buffered_render_finalize(Level *level, Model *m) {
   RenderBuffer *rb = &level->renderBuffer;
   glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(*rb->buffer)*rb->pos, &rb->buffer[0]);
-  glBufferSubData(GL_ARRAY_BUFFER, sizeof(*rb->buffer)*RENDER_BUFFER_SIZE, sizeof(*rb->buffer)*rb->pos, 
-      &rb->buffer[RENDER_BUFFER_SIZE]);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(rb->buffer), &rb->buffer[0], GL_DYNAMIC_COPY);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glDrawArraysInstanced(m->drawType, m->drawStart, m->drawCount, rb->pos);
   rb->pos = 0;
