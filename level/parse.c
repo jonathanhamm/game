@@ -314,8 +314,6 @@ tnode_s *parse_declaration(p_context_s *context) {
       symnode->node = tnode_create_x();
       bob_str_map_insert(&context->symtable, ident, symnode);
 
-      printf("added to symtable %s with lex\n", ident);
-
       parse_next_tok(context);
       parse_opt_assign(context, symnode);
       if (symnode->evalflag) {
@@ -328,7 +326,6 @@ tnode_s *parse_declaration(p_context_s *context) {
         }
         else {
         }
-        tnode_print(symnode->node);
       }
     }
     else {
@@ -599,8 +596,6 @@ tnode_s *parse_factor(p_context_s *context) {
       if (!symnode->evalflag) {
         report_semantics_error("Use of unitialized identifier", context);
       }
-      printf("looking up identifier: %s and got: %s\n", context->currtok->lexeme, symnode->node->tok->lexeme);
-      tnode_print(symnode->node);
       factor = symnode->node;
       parse_next_tok(context);
       parse_idsuffix(context, &factor);
@@ -1055,7 +1050,6 @@ bool exec_sub(tnode_s *accum, tnode_s *operand) {
       return false;
     }
   }
-  free(operand);
   return true;
 }
 
@@ -1115,7 +1109,6 @@ bool exec_add(tnode_s *accum, tnode_s *operand) {
       return false;
     }
   }
-  free(operand);
   return true;
 }
 
@@ -1148,7 +1141,6 @@ bool exec_mult(tnode_s *accum, tnode_s *operand) {
       return false;
     }
   }
-  free(operand);
   return true;
 }
 
@@ -1181,7 +1173,6 @@ bool exec_div(tnode_s *accum, tnode_s *operand) {
       return false;
     }
   }
-  free(operand);
   return true;
 }
 
@@ -1873,7 +1864,7 @@ bool emit_shader(tnode_s *shader, bob_shader_e type, p_context_s *context) {
 
   char *src, *src_stripped;
   tnode_s *src_node = bob_str_map_get(shader->val.obj, M_KEY("src"));
-  if (!src) {
+  if (!src_node) {
     report_semantics_error("Shader missing required 'src' property", context); 
     return false;
   }
@@ -2092,6 +2083,7 @@ bool emit_range_data(p_context_s *context, tnode_s *level, char *levelid) {
   if (ranges) {
     emit_ranges(context, levelid, ranges);
   }
+  return true;
 }
 
 bool emit_ranges(p_context_s *context, char *levelid, tnode_s *ranges) {
