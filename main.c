@@ -1,4 +1,4 @@
-#include "log.h"
+#include "common/log.h"
 #include "game.h"
 #include "lazy_instance_engine.h"
 

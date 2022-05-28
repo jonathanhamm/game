@@ -1,4 +1,4 @@
-#include "log.h"
+#include "common/log.h"
 #include "models.h"
 #include "meshes.h"
 #include <GL/glew.h>

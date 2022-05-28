@@ -1,5 +1,6 @@
 #include "game.h"
-#include "log.h"
+#include "common/log.h"
+#include "common/opengl-util.h"
 #include "meshes.h"
 #include "glprogram.h"
 #include "models.h"
@@ -15,7 +16,7 @@
 #include <stdio.h>
 
 static void level_render(GLFWwindow *window, Level *level);
-static void render_instance_group(InstanceGroup *ig, Camera *camera);
+static void render_instance_group(Level *level, InstanceGroup *ig, Camera *camera);
 
 static void render_instance(Instance *instance, Camera *camera);
 static void render_instance2(Level *level, Instance *instance, mat4 cmatrix, GLint camera_handle, 
@@ -29,7 +30,6 @@ static Instance *spawn_instance(Level *level);
 
 static void buffered_render(Level *level, Model *m, vec3 pos, vec3 scale);
 static void buffered_render_finalize(Level *level, Model *m);
-
 
 /** callbacks **/
 static void error_callback(int error, const char *description);
@@ -132,6 +132,7 @@ void bob_start(void) {
 			exit(1);
 		}
 		level.t0 = currTime;
+	
 	}
 	glfwDestroyWindow(window);
 	glfwTerminate();
@@ -143,7 +144,7 @@ void level_render(GLFWwindow *window, Level *level) {
 
 	for (i = 0; i < level->instances.size; i++) {
 		InstanceGroup *ig = level->instances.buffer[i];
-    //render_instance_group(ig, &level->camera);
+    render_instance_group(level, ig, &level->camera);
 	}
 
 	for (i = 0; i < level->ranges.size; i++) {
@@ -152,7 +153,7 @@ void level_render(GLFWwindow *window, Level *level) {
 	}
 }
 
-void render_instance_group(InstanceGroup *ig, Camera *camera) {
+void render_instance_group(Level *level, InstanceGroup *ig, Camera *camera) {
   int i;
 
   mat4 cmatrix;
@@ -178,8 +179,10 @@ void render_instance_group(InstanceGroup *ig, Camera *camera) {
 
   for (i = 0; i < ig->instances.size; i++) {
     Instance *inst = ig->instances.buffer[i];
-    //render_instance2(level, inst, cmatrix, camera_handle, model_handle, tex_handle);
+    render_instance2(level, inst, cmatrix, camera_handle, model_handle, tex_handle);
   }
+
+  buffered_render_finalize(level, m);
 
   glBindVertexArray(0);
   glBindTexture(GL_TEXTURE_2D, 0);

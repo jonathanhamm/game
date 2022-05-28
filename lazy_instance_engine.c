@@ -1,5 +1,5 @@
 #include "lazy_instance_engine.h"
-#include "log.h"
+#include "common/log.h"
 #include <stdint.h>
 #include <ctype.h>
 #include <stdlib.h>

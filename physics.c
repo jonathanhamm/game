@@ -1,5 +1,5 @@
 #include "physics.h"
-#include "log.h"
+#include "common/log.h"
 #include <math.h>
 #include <assert.h>
 #include <GLFW/glfw3.h>

@@ -101,6 +101,7 @@ static tnode_s *tnode_create_object(tok_s *tok, StrMap *obj);
 static tnode_s *tnode_create_array(tok_s *tok, tnode_list_s list, p_nodetype_e type);
 static tnode_s *tnode_create_basic_type(tok_s *tok, p_nodetype_e type);
 static tnode_s *tnode_create_array_type(tok_s *tok, tnode_arraytype_val_s atval);
+static tnode_s *tnode_create_copy(tnode_s *tnode);
 static char *make_label(p_context_s *context, char *prefix);
 static void tnode_list_init(tnode_list_s *list);
 static int tnode_list_add(tnode_list_s *list, tnode_s *node);
@@ -596,7 +597,7 @@ tnode_s *parse_factor(p_context_s *context) {
       if (!symnode->evalflag) {
         report_semantics_error("Use of unitialized identifier", context);
       }
-      factor = symnode->node;
+      factor = tnode_create_copy(symnode->node);
       parse_next_tok(context);
       parse_idsuffix(context, &factor);
       break;
@@ -1487,6 +1488,19 @@ tnode_s *tnode_create_array_type(tok_s *tok, tnode_arraytype_val_s atval) {
   return t;
 }
 
+
+/* 
+ * function:	tnode_create_array_type
+ * -------------------------------------------------- 
+ */
+tnode_s *tnode_create_copy(tnode_s *tnode) {
+  tnode_s *cpy = malloc(sizeof *cpy);
+  cpy->type = tnode->type;
+  cpy->tok = tnode->tok;
+  cpy->val = tnode->val;
+  return cpy;
+}
+
 /* 
  * function:	make_label
  * -------------------------------------------------- 
@@ -2265,6 +2279,7 @@ bool emit_lazy_instance(p_context_s *context, char *rangeid, tnode_s *lazy_insta
     return false;
   }
   CharBuf massbuf = val_to_str(mass);
+
 
   CharBuf isSubjectToGravitybuf = get_obj_value_default(obj, M_KEY("isSubjectToGravity"), "0");
 

@@ -1,4 +1,4 @@
-#include "log.h"
+#include "common/log.h"
 #include "glprogram.h"
 #include "common/errcodes.h"
 #include <stdio.h>

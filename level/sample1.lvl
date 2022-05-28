@@ -9,6 +9,14 @@
 		"src": "hello
 			world"
 	}
+  Mesh square := {
+    "vertices": [
+      -1, -1, 0, 0, 0,
+      -1, 1, 0, 0, 0,
+      1, -1, 0, 0, 0,
+      1, 1, 0, 0, 0
+    ]
+  }
   Mesh cone := {
     "vertices": [ 
       0.000000, -1.500000, 0.000000, 1.0, 0.0,
@@ -330,8 +338,9 @@
           out vec4 finalColor;
 
           void main() {
+
               finalColor = texture(tex, fragTexCoord);
-              //finalColor =  texture(tex, fragTexCoord) * vec4(0.5, 0.5, 1.0, 1.0);
+              //finalColor =  vec4(1,1,1,1) * vec4(0.5, 0.5, 0.5, 1.0);
               //finalColor = vec4(fragTexCoord, 0, 1) * vec4(0.5, 0.5, 1.0, 1.0);
           }
         "
@@ -359,9 +368,16 @@
 		"hasUV": 1,
 		"texture": texture
 	}
+  Model m4 := {
+    "mesh": square,
+    "program": program2,
+    "hasUV": 1,
+    "texture": texture
+  }
 
 	Int tunnelLength := 100
-	Int tunnelWidth := 35
+	Int tunnelWidth := 30
+  Int tunnelScale := 10
 	Level turd := {
 		"name": derp,
     "ambientGravity": [0, 0, -9.81],
@@ -374,7 +390,7 @@
 				"var": "y",
 				"cache": 1,
 				"instances": [
-					{"x": "30*x + " + tunnelWidth, "y": "x", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m3},
+					{"x": "30*x", "y": "y*" + tunnelScale, "z": "0.0", "scaley": tunnelScale, "scalex": 10, "mass": 1.0, "model": m3},
 					{"x": "30*x", "y": "y", "z": tunnelWidth, "scalex": 10, "mass": 1.0, "model": m3},
 					{"x": "30*x", "y": "0", "z": "y", "mass": 1.0, "scalex": 10, "model": m3},
 					{"x": "30*x", "y": tunnelWidth, "z": "y", "scalex": 10, "mass": 1.0, "model": m3},
@@ -382,7 +398,9 @@
 					{"x": "0", "y": "30*x", "z": "0.0", "scalex": 10, "mass": 1.0, "model": m3},
 					{"x": tunnelWidth, "y": "30*x", "z": tunnelWidth, "scalex": 10, "mass": 1.0, "model": m3},
 					{"x": "y", "y": "30*x", "z": "y", "mass": 1.0, "scalex": 10, "model": m3},
-					{"x": "y", "y": "30*x", "z": "y", "scalex": 10, "mass": 1.0, "model": m3}
+					{"x": "y", "y": "30*x", "z": "y", "scalex": 10, "mass": 1.0, "model": m3},
+
+					{"x": "y+5", "y": "30*x+5", "z": "y+5", "scalex": 10, "mass": 1.0, "model": m4}
 				]
 			},
 			"instances": [
