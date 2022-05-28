@@ -136,21 +136,13 @@ Level *bob_loadlevel(bob_db_s *bdb, const char *name) {
 	if (rc < 0)
 		return NULL;
 
-  opengl_check_error("b");
-
 	rc = bob_dbload_instances(lvl, bdb, name);
 	if (rc < 0)
 		return NULL;
 
-
-  opengl_check_error("c");
-
 	rc = bob_dbload_ranges(lvl, bdb, name);
 	if (rc < 0)
 		return NULL;
-
-  
-  opengl_check_error("d");
 
 	return lvl;
 }
@@ -508,12 +500,8 @@ Model *bob_dbload_model(bob_db_s *bdb, int modelID) {
 		programID = sqlite3_column_int(bdb->qmodel, 1);
 		textureID = sqlite3_column_int(bdb->qmodel, 2);
 		hasUV = sqlite3_column_int(bdb->qmodel, 3);
-
-    opengl_check_error("ba");
 		bob_dbload_program(bdb, m, programID);
-    opengl_check_error("bb");
 		bob_dbload_mesh(bdb, m, meshID);
-    opengl_check_error("bc");
 		bob_dbload_texture(bdb, m, textureID);
 	}
 	rc = sqlite3_step(bdb->qmodel);
@@ -551,29 +539,20 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
 		glGenBuffers(1, &m->vbo);
 		glGenVertexArrays(1, &m->vao);
 
-
-    opengl_check_error("bba");
-
 		glBindVertexArray(m->vao);
 		glBindBuffer(GL_ARRAY_BUFFER, m->vbo);
 		glBufferData(GL_ARRAY_BUFFER, fbuf.size * sizeof(GLfloat), fbuf.buffer, 
 				GL_STATIC_DRAW);
-
-    opengl_check_error("bbb");
 
 		handle = gl_shader_attrib(m->program, "vert");
 		glEnableVertexAttribArray(handle);
 		glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), 
 				NULL);
 
-    opengl_check_error("bbc");
-
 		handle = gl_shader_attrib(m->program, "vertexCoord");
 		glEnableVertexAttribArray(handle);
 		glVertexAttribPointer(handle, 2, GL_FLOAT, GL_TRUE, 5*sizeof(GLfloat), 
 				(const GLvoid *)(3*sizeof(GLfloat)));
-
-    opengl_check_error("bbd");
 
     glGenBuffers(1, &m->pvbo);
     glBindBuffer(GL_ARRAY_BUFFER, m->pvbo);
@@ -582,15 +561,10 @@ void bob_dbload_mesh(bob_db_s *bdb, Model *m, int meshID) {
     glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 0, NULL);
     glVertexAttribDivisor(handle, 1);
 
-
-    opengl_check_error("bbe");
-
     handle = gl_shader_attrib(m->program, "scale");
     glEnableVertexAttribArray(handle);
     glVertexAttribPointer(handle, 3, GL_FLOAT, GL_FALSE, 0, (void *)(RENDER_BUFFER_SIZE * sizeof(vec3)));
     glVertexAttribDivisor(handle, 1);
-
-    opengl_check_error("bbf");
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);

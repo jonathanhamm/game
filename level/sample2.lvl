@@ -2,7 +2,7 @@
   "hello": 1
 }
 {
-  Mesh square := {
+  Mesh square1 := {
   "vertices": [
      0.0, 0.0, 0.0, 0.0, 0.0,
      0.0, 1.0, 0.0, 1.0, 0.0,
@@ -10,6 +10,16 @@
      1.0, 1.0, 0.0, 1.0, 1.0
    ]
   }
+
+  Mesh square2 := {
+  "vertices": [
+     0.0, 0.0, 0.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 1.0, 0.0,
+     1.0, 0.0, 0.0, 0.0, 1.0,
+     1.0, 0.0, 1.0, 1.0, 1.0
+   ]
+  }
+
 
   Texture texture := {
     "path": "textures/basic1.png"
@@ -89,7 +99,13 @@
   }
 
   Model m1 := {
-    "mesh": square,
+    "mesh": square1,
+    "program": program,
+    "hasUV": 1,
+    "texture": texture
+  }
+  Model m2 := {
+    "mesh": square2,
     "program": program,
     "hasUV": 1,
     "texture": texture
@@ -111,13 +127,13 @@
         "cache": 1,
         "instances": [
 			    { "x": "10*x", "y": "10*y", "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0},
-			    { "x": "10*x", "y": "10*y", "z": tunnelWidth*tunnelScale, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0}
-			    //{ "x": "10*x", "y": "10*y", "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0},
-			    //{ "x": "10*x", "y": "10*y", "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0},
+			    { "x": "10*x", "y": "10*y", "z": tunnelWidth*tunnelScale, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0},
+			    { "x": "10*x", "y": "0", "z": "10*y", "mass": 1.0, "model": m2, "scalex": 10, "scalez": 10, "isSubjectToGravity": 1, "isStatic": 0},
+			    { "x": "10*x", "y": tunnelWidth*tunnelScale, "z": "10*y", "mass": 1.0, "model": m2, "scalex": 10, "scalez": 10, "isSubjectToGravity": 1, "isStatic": 0}
         ]
       },
       "instances": [
-			    { "x": "10*x", "y": "100", "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0}
+			    { "x": "10*x", "y": "400", "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0}
       ]
     }],
     "instances": [
