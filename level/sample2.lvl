@@ -112,11 +112,11 @@
   }
 
   Int tunnelLength := 100
-  Int tunnelWidth := 10
-  Int tunnelScale := 10
+  Int tunnelWidth := 3
+  Int tunnelScale := 100
   Level level := {
     "name": "hello",
-    "ambientGravity": [0, 0, 0],
+    "ambientGravity": [0, 0, 0.1],
     "ranges": [{
       "steps": tunnelLength,
       "var": "x",
@@ -126,20 +126,13 @@
         "var": "y",
         "cache": 1,
         "instances": [
-			    { "x": "10*x", "y": "10*y", "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0},
-			    { "x": "10*x", "y": "10*y", "z": tunnelWidth*tunnelScale, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0},
-			    { "x": "10*x", "y": "0", "z": "10*y", "mass": 1.0, "model": m2, "scalex": 10, "scalez": 10, "isSubjectToGravity": 1, "isStatic": 0},
-			    { "x": "10*x", "y": tunnelWidth*tunnelScale, "z": "10*y", "mass": 1.0, "model": m2, "scalex": 10, "scalez": 10, "isSubjectToGravity": 1, "isStatic": 0}
+			    { "x": "x*"+tunnelScale, "y": "y*" + tunnelScale, "z": 0, "mass": 1.0, "model": m1, "scalex": tunnelScale, "scaley": tunnelScale, "isSubjectToGravity": 1, "isStatic": 0},
+			    { "x": "x*"+tunnelScale, "y": "y*"+tunnelScale, "z": tunnelWidth*tunnelScale, "mass": 1.0, "model": m1, "scalex": tunnelScale, "scaley": tunnelScale, "isSubjectToGravity": 1, "isStatic": 0},
+			    { "x": "x*"+tunnelScale, "y": "0", "z": "y*"+tunnelScale, "mass": 1.0, "model": m2, "scalex": tunnelScale, "scalez": tunnelScale, "isSubjectToGravity": 1, "isStatic": 0},
+			    { "x": "x*"+tunnelScale, "y": tunnelWidth*tunnelScale, "z": "y*"+tunnelScale, "mass": 1.0, "model": m2, "scalex": tunnelScale, "scalez": tunnelScale, "isSubjectToGravity": 1, "isStatic": 0}
         ]
-      },
-      "instances": [
-			    { "x": "10*x", "y": "400", "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0}
-      ]
-    }],
-    "instances": [
-			{ "x": 0.0, "y": 0.0, "z": 0, "mass": 1.0, "model": m1, "scalex": 10, "scaley": 10, "isSubjectToGravity": 1, "isStatic": 0}
-    ]
+      }
+    }]
   }
-
 }
 

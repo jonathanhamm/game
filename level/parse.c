@@ -1953,10 +1953,6 @@ bool emit_instance_data(p_context_s *context, tnode_s *level, char *levelid) {
   if (instances) {
     emit_instances(context, levelid, instances);
   }
-  if (!instances) {
-    report_semantics_error("Level must at least have an instances or instancePlanes array", context);
-    return false;
-  }
   return true;
 }
 
@@ -2192,12 +2188,10 @@ char *emit_range(p_context_s *context, char *levelid, tnode_s *range_node) {
 
   //insert lazy instances
   tnode_s *instances = bob_str_map_get(obj, M_KEY("instances"));
-  if (!instances) {
-    report_semantics_error("Range missing required 'instances' property", context);
-    return false;
+  if (instances) {
+    emit_lazy_instances(context, table_name, instances);
   }
 
-  emit_lazy_instances(context, table_name, instances);
 
   return table_name;
 }

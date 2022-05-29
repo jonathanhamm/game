@@ -297,7 +297,6 @@ void render_lazy_instance(Level *level, LazyInstance *li, Range *range, mat4 cma
 	instance.pos[1] = posy;
 	instance.pos[2] = posz;
 
-
   float scalex = lazy_epxression_compute(range, li->scalex);
 	float scaley = lazy_epxression_compute(range, li->scaley);
 	float scalez = lazy_epxression_compute(range, li->scalez);
@@ -314,7 +313,7 @@ void update(GLFWwindow *window, Camera *camera, float secondsElapsed) {
 	camera->gdegrees_rotated += secondsElapsed * degreesPerSecond;
 	while(camera->gdegrees_rotated > 360.0f) camera->gdegrees_rotated -= 360.0f;
 	vec3 result;
-	const float moveSpeed = 100; //units per second
+	const float moveSpeed = 200; //units per second
 	if(glfwGetKey(window, 'S')){
 		camera_forward(camera, result);
 		glm_vec3_scale(result, -secondsElapsed * moveSpeed, result);
@@ -358,9 +357,9 @@ Instance *spawn_instance(Level *level) {
 	inst->pos[2] = level->camera.pos[2];
 
 	inst->mass = 10;
-	inst->scale[0] = 1.0;
-	inst->scale[1] = 1.0;
-	inst->scale[2] = 1.0;
+	inst->scale[0] = 10;
+	inst->scale[1] = 10;
+	inst->scale[2] = 10;
 	inst->rotation[0] = 2;
 	inst->rotation[1] = 0;
 	inst->rotation[2] = 0;
